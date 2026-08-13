@@ -87,16 +87,22 @@ src/
 
 ## Design
 
-Light violet gradient ground, neon violet accents, card-based layout. Every colour is a custom property in the `:root` block at the top of [`src/styles/global.css`](src/styles/global.css).
+Light green gradient ground, neon green accents, card-based layout. Every colour is a custom property in the `:root` block at the top of [`src/styles/global.css`](src/styles/global.css).
 
-| Token | | |
-| --- | --- | --- |
-| `--accent` | `#7C3AED` | neon violet — marks, fills, gradients |
-| `--accent-ink` | `#6D28D9` | text-safe violet (7.1:1 on white) |
-| `--fuchsia` | `#D946EF` | gradient partner, never alone |
-| `--text` / `--text-2` / `--text-3` | | 17.8 / 8.2 / 5.1:1 on white |
+Green is much lighter than violet at the same saturation, so the palette is split by **what a colour is allowed to touch**. This is the one rule to keep if you retune it:
 
-All ink passes WCAG AA against both the card and the gradient ground. `--text-3` is deliberately darker than it looks like it needs to be — at 11–12px it is normal-size text, so it needs 4.5:1, not 3:1.
+| Token | | Contrast on white | May be used for |
+| --- | --- | --- | --- |
+| `--neon` | `#22C55E` | 2.28 | large fills only, with `--neon-ink` on top |
+| `--lime` | `#A3E635` | 1.79 | gradient partner to `--neon`, same rule |
+| `--neon-ink` | `#052E16` | — | text on `--neon` (6.5:1) / `--lime` (9.9:1) |
+| `--accent` | `#16A34A` | 3.30 | graphical marks — meters, dots, rules |
+| `--accent-ink` | `#15803D` | 5.02 | anything that is text |
+| `--text` / `--text-2` / `--text-3` | | 17.2 / 8.1 / 5.1 | body, secondary, metadata |
+
+**Never put white text on `--neon` or `--lime`** — it lands at 2.3:1. The primary button and active filter pill carry `--neon-ink` for exactly this reason. The headline gradient likewise steps `--accent-ink → --accent → --teal`, all of which clear 3:1 as large text; the earlier violet build could use its brightest hue there, and green cannot.
+
+`--text-3` is darker than it looks like it needs to be — at 11–12px it is normal-size text, so it needs 4.5:1, not 3:1.
 
 Type is two faces with a strict division of labour: **Inter** for anything you read, **JetBrains Mono** for anything you scan — dates, tags, labels, stack lists, code.
 
@@ -113,9 +119,11 @@ Two visualisations, both built from data already in [`src/data/profile.ts`](src/
 `--series-1/2/3` are a **fixed order, never cycled**, and were checked with the data-viz validator rather than by eye:
 
 ```
-violet #7C3AED · cyan #0891B2 · pink #DB2777
-all-pairs, light surface — worst CVD ΔE 10.3 · normal-vision ΔE 24.5 · all ≥3:1
+green #166534 · cyan #0891B2 · pink #DB2777
+all-pairs, white surface — worst CVD ΔE 10.3 · normal-vision ΔE 20.5 · all ≥3:1
 ```
+
+Slot 1 is a deeper green than `--accent`. That is deliberate: lighter greens sit too close to cyan and pink under deuteranopia — `#16A34A` with the same partners drops to ΔE 6.1, a WARN. Green is a genuinely harder hue to build a categorical set around than violet was.
 
 If you add a fourth role or change a hue, re-run the validator and only ship a passing set. Colour follows the entity, never its rank — the swatch beside each company name is what ties bar to label, so identity is never carried by colour alone.
 
