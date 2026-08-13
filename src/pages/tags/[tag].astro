@@ -1,0 +1,51 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import PostRow from '../../components/PostRow.astro';
+import { getPosts, getTags, type Post } from '../../lib/posts';
+
+export async function getStaticPaths() {
+	const posts = await getPosts();
+	const tags = await getTags();
+	return tags.map(({ tag }) => ({
+		params: { tag },
+		props: { tag, posts: posts.filter((p) => p.data.tag === tag) },
+	}));
+}
+
+type Props = { tag: string; posts: Post[] };
+
+const { tag, posts } = Astro.props;
+const allTags = await getTags();
+---
+
+<BaseLayout
+	title={`#${tag} — Praveen B S D`}
+	description={`Posts tagged ${tag} — platform engineering writing by Praveen B S D.`}
+>
+	<div class="wrap page-head">
+		<span class="eyebrow">// tagged</span>
+		<h1>{tag}</h1>
+		<p>{posts.length} {posts.length === 1 ? 'post' : 'posts'} in this tag.</p>
+		<div class="tag-row">
+			{
+				allTags.map(({ tag: t, count }) =>
+					t === tag ? (
+						<span class="tag" style="border-color:var(--navy);background:var(--paper-2)">
+							{t} · {count}
+						</span>
+					) : (
+						<a class="tag" href={`/tags/${t}/`}>{t} · {count}</a>
+					),
+				)
+			}
+		</div>
+	</div>
+
+	<section style="padding-top:38px">
+		<div class="wrap">
+			<div class="log">
+				{posts.map((post) => <PostRow post={post} />)}
+			</div>
+		</div>
+	</section>
+</BaseLayout>

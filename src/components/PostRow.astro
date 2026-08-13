@@ -1,0 +1,30 @@
+---
+import type { CollectionEntry } from 'astro:content';
+
+interface Props {
+	post: CollectionEntry<'posts'>;
+}
+
+const { post } = Astro.props;
+const { title, description, pubDate, tag, hash } = post.data;
+
+// "2026 · 08 · 12" — matches the changelog styling of the original design.
+const stamp = [
+	pubDate.getUTCFullYear(),
+	String(pubDate.getUTCMonth() + 1).padStart(2, '0'),
+	String(pubDate.getUTCDate()).padStart(2, '0'),
+].join(' · ');
+---
+
+<article class="entry">
+	<div class="meta">
+		<span class="hash">{hash}</span><br />
+		<time datetime={pubDate.toISOString()}>{stamp}</time>
+	</div>
+	<div class="body">
+		<h3><a href={`/writing/${post.id}/`}>{title}</a></h3>
+		<p>{description}</p>
+		<a class="tag" href={`/tags/${tag}/`}>{tag}</a>
+	</div>
+	<span class="arrow" aria-hidden="true">&rarr;</span>
+</article>

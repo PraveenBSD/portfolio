@@ -1,0 +1,61 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import BaseLayout from './BaseLayout.astro';
+
+interface Props {
+	post: CollectionEntry<'posts'>;
+	prev?: CollectionEntry<'posts'>;
+	next?: CollectionEntry<'posts'>;
+}
+
+const { post, prev, next } = Astro.props;
+const { title, description, pubDate, updatedDate, tag, hash, readingTime } = post.data;
+
+const dateLabel = pubDate.toLocaleDateString('en-GB', {
+	day: 'numeric',
+	month: 'short',
+	year: 'numeric',
+	timeZone: 'UTC',
+});
+const meta = [dateLabel, readingTime].filter(Boolean).join(' · ');
+---
+
+<BaseLayout title={`${title} — Praveen B S D`} description={description} type="article" publishedAt={pubDate}>
+	<div class="post-shell">
+		<div class="post-top">
+			<span>platform/blog &middot; <span>{hash}</span></span>
+			<a href="/writing/">&larr; all writing</a>
+		</div>
+
+		<article class="article">
+			<a class="a-tag" href={`/tags/${tag}/`}>{tag}</a>
+			<h1>{title}</h1>
+			<div class="a-meta">
+				<time datetime={pubDate.toISOString()}>{meta}</time>
+				{updatedDate && <span> · updated {updatedDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })}</span>}
+			</div>
+			<slot />
+		</article>
+
+		{
+			(prev || next) && (
+				<nav class="post-nav">
+					{prev ? (
+						<a href={`/writing/${prev.id}/`}>
+							<span class="lbl">&larr; Older</span>
+							{prev.data.title}
+						</a>
+					) : (
+						<span />
+					)}
+					{next && (
+						<a href={`/writing/${next.id}/`} style="text-align:right">
+							<span class="lbl">Newer &rarr;</span>
+							{next.data.title}
+						</a>
+					)}
+				</nav>
+			)
+		}
+	</div>
+</BaseLayout>

@@ -1,0 +1,142 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import PostRow from '../components/PostRow.astro';
+import { getPosts } from '../lib/posts';
+import { SITE } from '../consts';
+import { HERO, STATS, WORK, EXPERIENCE, ABOUT_PARAGRAPHS, FACTS } from '../data/profile';
+
+const posts = (await getPosts()).slice(0, 6);
+---
+
+<BaseLayout title={SITE.title}>
+	<!-- HERO -->
+	<section class="hero">
+		<div class="wrap">
+			<span class="live-pill">
+				<span class="pulse"></span>
+				<span set:html={HERO.pill} />
+			</span>
+			<h1>{HERO.headline} <span class="accent">{HERO.headlineAccent}</span></h1>
+			<p class="hero-lede">{HERO.lede}</p>
+			<div class="hero-actions">
+				<a href="#writing" class="btn btn-primary">Read the latest &rarr;</a>
+				<a href="#work" class="btn btn-ghost">See the work</a>
+			</div>
+
+			<div class="status" aria-label="Selected impact">
+				<div class="status-bar">
+					<span class="lights"><i class="l1"></i><i class="l2"></i><i class="l3"></i></span>
+					<span>platform/status &mdash; selected impact &middot; last 4 years</span>
+				</div>
+				<div class="status-grid">
+					{
+						STATS.map((stat) => (
+							<div class="tile">
+								<div class="k">
+									<span class="sd" />
+									{stat.key}
+								</div>
+								<div class="v">
+									{stat.value}
+									<span class="unit">{stat.unit}</span>
+								</div>
+								<div class="c">{stat.note}</div>
+							</div>
+						))
+					}
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<!-- WRITING -->
+	<section class="writing" id="writing">
+		<div class="wrap">
+			<div class="sec-head">
+				<h2>Writing</h2>
+				<span class="count">
+					// a running log &middot; newest first &middot; <a href="/rss.xml">RSS</a>
+				</span>
+			</div>
+			<div class="log">
+				{posts.map((post) => <PostRow post={post} />)}
+			</div>
+			<p style="margin-top:26px">
+				<a href="/writing/" class="btn btn-ghost">Browse the archive &rarr;</a>
+			</p>
+		</div>
+	</section>
+
+	<!-- WORK -->
+	<section id="work">
+		<div class="wrap">
+			<div class="sec-head">
+				<h2>Selected work</h2>
+				<span class="count">// four platforms I own or built</span>
+			</div>
+			<div class="work-grid">
+				{
+					WORK.map((item) => (
+						<div class="card">
+							<span class="slug">{item.slug}</span>
+							<h3>{item.title}</h3>
+							<p>{item.blurb}</p>
+							<div class="stack">
+								{item.stack.map((tech) => (
+									<span class="chip">{tech}</span>
+								))}
+							</div>
+						</div>
+					))
+				}
+			</div>
+		</div>
+	</section>
+
+	<!-- EXPERIENCE -->
+	<section id="experience">
+		<div class="wrap">
+			<div class="sec-head">
+				<h2>Experience</h2>
+				<span class="count">// 2018 &rarr; present</span>
+			</div>
+			<div class="xp">
+				{
+					EXPERIENCE.map((role) => (
+						<div class="role">
+							<div class="when">{role.when}</div>
+							<div>
+								<h3>
+									<span class="co">{role.company}</span> — {role.role}
+								</h3>
+								<p>{role.summary}</p>
+							</div>
+						</div>
+					))
+				}
+			</div>
+		</div>
+	</section>
+
+	<!-- ABOUT -->
+	<section id="about">
+		<div class="wrap">
+			<div class="sec-head"><h2>About</h2></div>
+			<div class="about-grid">
+				<div class="about">
+					{ABOUT_PARAGRAPHS.map((para) => <p set:html={para} />)}
+				</div>
+				<div class="facts">
+					{
+						FACTS.map((fact) => (
+							<div class="row">
+								<span class="lbl">{fact.label}</span>
+								<span class="val">{fact.value}</span>
+							</div>
+						))
+					}
+				</div>
+			</div>
+		</div>
+	</section>
+</BaseLayout>

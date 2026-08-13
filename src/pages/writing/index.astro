@@ -1,0 +1,33 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import PostRow from '../../components/PostRow.astro';
+import { getPosts, getTags } from '../../lib/posts';
+
+const posts = await getPosts();
+const tags = await getTags();
+---
+
+<BaseLayout
+	title="Writing — Praveen B S D"
+	description="Every post: platform engineering, GitOps, Kubernetes, SRE, DevSecOps, and FinOps — drawn from real platform work."
+>
+	<div class="wrap page-head">
+		<span class="eyebrow">// the archive</span>
+		<h1>Writing</h1>
+		<p>
+			Everything, newest first. Short and specific, drawn from real work rather than trend cycles.
+			<a href="/rss.xml" style="color:var(--navy)">Subscribe via RSS</a>.
+		</p>
+		<div class="tag-row">
+			{tags.map(({ tag, count }) => <a class="tag" href={`/tags/${tag}/`}>{tag} · {count}</a>)}
+		</div>
+	</div>
+
+	<section style="padding-top:38px">
+		<div class="wrap">
+			<div class="log">
+				{posts.map((post) => <PostRow post={post} />)}
+			</div>
+		</div>
+	</section>
+</BaseLayout>
