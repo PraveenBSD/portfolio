@@ -1,6 +1,7 @@
 ---
 import '../styles/global.css';
 import { Font } from 'astro:assets';
+import ThemeScript from './ThemeScript.astro';
 import { SITE } from '../consts';
 
 interface Props {
@@ -25,6 +26,8 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <meta name="generator" content={Astro.generator} />
 
+<ThemeScript />
+
 <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 <link rel="sitemap" href="/sitemap-index.xml" />
 <link
@@ -37,7 +40,6 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 
 <Font cssVariable="--font-display" preload />
 <Font cssVariable="--font-body" preload />
-<Font cssVariable="--font-mono" />
 
 <title>{title}</title>
 <meta name="description" content={description} />

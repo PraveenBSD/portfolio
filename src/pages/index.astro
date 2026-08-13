@@ -16,7 +16,14 @@ const posts = (await getPosts()).slice(0, 6);
 				<span class="pulse"></span>
 				<span set:html={HERO.pill} />
 			</span>
-			<h1>{HERO.headline} <span class="accent">{HERO.headlineAccent}</span></h1>
+			<p class="prompt-line">
+				<span class="ps1">praveen@platform:~$</span> <span class="cmd">whoami</span>
+			</p>
+			<h1>
+				{HERO.headline} <span class="accent">{HERO.headlineAccent}</span><span
+					class="cursor"
+					aria-hidden="true"></span>
+			</h1>
 			<p class="hero-lede">{HERO.lede}</p>
 			<div class="hero-actions">
 				<a href="#writing" class="btn btn-primary">Read the latest &rarr;</a>
