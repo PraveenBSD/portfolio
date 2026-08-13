@@ -1,0 +1,146 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import CareerTimeline from '../components/CareerTimeline.astro';
+import { SUMMARY, IMPACT, EXPERTISE, POSITIONS, SKILLS, EDUCATION } from '../data/resume';
+import { SOCIAL } from '../consts';
+
+// Group consecutive positions at the same employer so a progression in place
+// reads as one company with several roles, rather than three separate jobs.
+type Position = (typeof POSITIONS)[number];
+const groups: { company: string; roles: Position[] }[] = [];
+for (const role of POSITIONS) {
+	const last = groups[groups.length - 1];
+	if (last && last.company === role.company) last.roles.push(role);
+	else groups.push({ company: role.company, roles: [role] });
+}
+---
+
+<BaseLayout
+	title="Experience | Praveen B S D"
+	description="Eight years across platform engineering and SRE: internal developer platforms, GitOps, Kubernetes at scale, DevSecOps, and FinOps."
+>
+	<header class="page-head wrap">
+		<p class="label">Experience</p>
+		<h1>Eight years, five roles</h1>
+		<p>{SUMMARY}</p>
+		<p style="margin-top:18px">
+			<a class="btn btn-primary" href={SOCIAL.email}>Get in touch</a>
+			<a class="btn btn-ghost" href={SOCIAL.linkedin} rel="me noopener">LinkedIn</a>
+		</p>
+	</header>
+
+	<section class="sec wrap">
+		<div class="sec-head">
+			<div>
+				<p class="label">Selected impact</p>
+				<h2>Numbers across the last four years</h2>
+			</div>
+		</div>
+		<div class="card impact">
+			{
+				IMPACT.map((item) => (
+					<div class="impact-row">
+						<span class="impact-v">{item.value}</span>
+						<span class="impact-l">{item.label}</span>
+						<span class="impact-d">{item.detail}</span>
+					</div>
+				))
+			}
+		</div>
+	</section>
+
+	<section class="sec wrap">
+		<div class="sec-head">
+			<div>
+				<p class="label">Timeline</p>
+				<h2>Where the time went</h2>
+			</div>
+		</div>
+		<CareerTimeline />
+	</section>
+
+	<section class="sec wrap">
+		<div class="sec-head">
+			<div>
+				<p class="label">Roles</p>
+				<h2>What I did, in detail</h2>
+			</div>
+		</div>
+
+		{
+			groups.map((group) => (
+				<div class="card employer">
+					<h3 class="employer-name">{group.company}</h3>
+					{group.roles.map((role) => (
+						<div class="role-block">
+							<div class="role-head">
+								<h4>{role.title}</h4>
+								<span class="role-when">{role.when}</span>
+							</div>
+							<ul class="role-bullets">
+								{role.bullets.map((b) => (
+									<li>{b}</li>
+								))}
+							</ul>
+							<div class="tl-tags">
+								{role.stack.map((s) => (
+									<span class="pill">{s}</span>
+								))}
+							</div>
+						</div>
+					))}
+				</div>
+			))
+		}
+	</section>
+
+	<section class="sec wrap">
+		<div class="sec-head">
+			<div>
+				<p class="label">Skills</p>
+				<h2>Tools and practices</h2>
+			</div>
+		</div>
+		<div class="card skills">
+			{
+				SKILLS.map((s) => (
+					<div class="skill-row">
+						<span class="skill-group">{s.group}</span>
+						<div class="skill-items">
+							{s.items.map((i) => (
+								<span class="pill">{i}</span>
+							))}
+						</div>
+					</div>
+				))
+			}
+		</div>
+	</section>
+
+	<section class="sec wrap">
+		<div class="sec-head">
+			<div>
+				<p class="label">Also</p>
+				<h2>Focus areas and education</h2>
+			</div>
+		</div>
+		<div class="card skills">
+			<div class="skill-row">
+				<span class="skill-group">Expertise</span>
+				<div class="skill-items">
+					{EXPERTISE.map((e) => <span class="pill">{e}</span>)}
+				</div>
+			</div>
+			<div class="skill-row">
+				<span class="skill-group">Education</span>
+				<div>
+					<p style="margin:0;font-weight:600">{EDUCATION.degree}</p>
+					<p style="margin:2px 0 0;color:var(--text-2);font-size:13.5px">
+						{EDUCATION.school}
+					</p>
+					<p class="role-when" style="margin:4px 0 0">{EDUCATION.when}</p>
+				</div>
+			</div>
+		</div>
+	</section>
+</BaseLayout>

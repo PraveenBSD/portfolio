@@ -47,9 +47,17 @@ Frontmatter is schema-validated in [`src/content.config.ts`](src/content.config.
 
 **Three posts are currently `draft: true`** — leftover stubs from the original prototype with no body written. Write the body, drop the `draft` line, done.
 
-## Editing the home page
+## Editing content
 
-Everything that is content rather than layout lives in [`src/data/profile.ts`](src/data/profile.ts) — hero copy, the stat tiles, work cards, experience, about, facts. Site title, nav, and social links are in [`src/consts.ts`](src/consts.ts).
+| What | Where |
+| --- | --- |
+| Hero copy, stat tiles, work cards, timeline, about, facts | [`src/data/profile.ts`](src/data/profile.ts) |
+| Full role detail, skills, education | [`src/data/resume.ts`](src/data/resume.ts) |
+| Site title, nav, social links | [`src/consts.ts`](src/consts.ts) |
+
+Dates appear in **both** data files: `profile.ts` drives the three-bar home timeline (grouped by company), `resume.ts` lists every position separately so the Mad Street Den progression reads as three roles. Change a date in one and change it in the other.
+
+`resume.md` at the repo root is the source both were written from. It is not read at build time, so editing it alone changes nothing on the site.
 
 ## Deploying to Cloudflare
 
@@ -133,6 +141,7 @@ command: pages deploy dist --project-name=praveenbsd-portfolio
 src/
   consts.ts              site metadata, nav, social links
   data/profile.ts        home page content as data
+  data/resume.ts         full experience detail (from resume.md)
   content.config.ts      post frontmatter schema
   content/posts/*.mdx    the posts
   lib/posts.ts           sorting, draft filtering, tag counts
@@ -141,6 +150,7 @@ src/
   layouts/               BaseLayout, PostLayout
   pages/
     index.astro          home
+    experience.astro     full experience page
     writing/index.astro  archive
     writing/[...slug]    post pages
     tags/[tag].astro     tag pages
