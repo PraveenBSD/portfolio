@@ -76,6 +76,14 @@ Workers rather than Pages because Cloudflare now steers new projects there; Page
 
 Node version comes from [`.node-version`](.node-version), already pinned to 22.
 
+`wrangler` is a devDependency pinned in [`package.json`](package.json), so `npx wrangler deploy` uses that exact version rather than downloading whatever is latest on each build. Bump it deliberately — a floating version means an upstream release can change your deploy without a commit.
+
+Validate the config locally before pushing:
+
+```bash
+npm run build && npx wrangler deploy --dry-run
+```
+
 **4. Optional — preview builds.** Enable *non-production branch builds* to get a preview URL per branch. The preview deploy command defaults to `npx wrangler versions upload`, which publishes a version without promoting it to production.
 
 **5. Push to `main`.** Cloudflare clones, builds, and deploys.
