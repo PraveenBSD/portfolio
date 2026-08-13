@@ -45,7 +45,7 @@ Body in Markdown or MDX.
 
 Frontmatter is schema-validated in [`src/content.config.ts`](src/content.config.ts), so a typo fails the build rather than shipping quietly. Tag pages, the archive, RSS, and the sitemap all update themselves — no index to maintain by hand.
 
-**Five posts are currently `draft: true`** — they were titles and summaries in the original prototype with no body written. Write the body, drop the `draft` line, done.
+**Three posts are currently `draft: true`** — leftover stubs from the original prototype with no body written. Write the body, drop the `draft` line, done.
 
 ## Editing the home page
 
@@ -73,7 +73,8 @@ src/
   content.config.ts      post frontmatter schema
   content/posts/*.mdx    the posts
   lib/posts.ts           sorting, draft filtering, tag counts
-  components/            BaseHead, Nav, Footer, PostRow
+  components/            BaseHead, Nav, Footer, PostCard,
+                         StatTile, CareerTimeline, Portrait
   layouts/               BaseLayout, PostLayout
   pages/
     index.astro          home
@@ -117,28 +118,11 @@ Type is three faces: **Space Grotesk** for display (headings, the oversized stat
 
 Save it as `src/assets/portrait.jpg` — see [`src/assets/README.md`](src/assets/README.md). It is picked up by a glob, so a missing file degrades to a monogram instead of breaking the build.
 
-Green is much lighter than violet at the same saturation, so the palette is split by **what a colour is allowed to touch**. This is the one rule to keep if you retune it:
-
-| Token | | Contrast on white | May be used for |
-| --- | --- | --- | --- |
-| `--neon` | `#22C55E` | 2.28 | large fills only, with `--neon-ink` on top |
-| `--lime` | `#A3E635` | 1.79 | gradient partner to `--neon`, same rule |
-| `--neon-ink` | `#052E16` | — | text on `--neon` (6.5:1) / `--lime` (9.9:1) |
-| `--accent` | `#16A34A` | 3.30 | graphical marks — meters, dots, rules |
-| `--accent-ink` | `#15803D` | 5.02 | anything that is text |
-| `--text` / `--text-2` / `--text-3` | | 17.2 / 8.1 / 5.1 | body, secondary, metadata |
-
-**Never put white text on `--neon` or `--lime`** — it lands at 2.3:1. The primary button and active filter pill carry `--neon-ink` for exactly this reason. The headline gradient likewise steps `--accent-ink → --accent → --teal`, all of which clear 3:1 as large text; the earlier violet build could use its brightest hue there, and green cannot.
-
-`--text-3` is darker than it looks like it needs to be — at 11–12px it is normal-size text, so it needs 4.5:1, not 3:1.
-
-Type is two faces with a strict division of labour: **Inter** for anything you read, **JetBrains Mono** for anything you scan — dates, tags, labels, stack lists, code.
-
 ## Charts
 
 Two visualisations, both built from data already in [`src/data/profile.ts`](src/data/profile.ts) — no invented numbers.
 
-**Stat tiles** ([`StatTile.astro`](src/components/StatTile.astro)) — a KPI row, not a bar chart, because each value is a single headline number. The meter fill and track are steps of the same violet ramp. The tiles mix polarity (availability is "of 100%", the rest are reductions), so every tile carries a `basis` label saying what its bar measures.
+**Stat tiles** ([`StatTile.astro`](src/components/StatTile.astro)) — a KPI row, not a bar chart, because each value is a single headline number. The meter fill and track are steps of the same iris ramp. The tiles mix polarity (availability is "of 100%", the rest are reductions), so every tile carries a `basis` label saying what its bar measures.
 
 **Career timeline** ([`CareerTimeline.astro`](src/components/CareerTimeline.astro)) — one duration bar per role on a shared year axis, in HTML rather than SVG so labels reflow and stay at real font sizes. Bar geometry and axis ticks are both computed from `start`/`end` in the data, so they cannot drift apart. Durations never round a partial year up (`1y 7m`, not `2y`).
 
