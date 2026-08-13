@@ -1,6 +1,6 @@
 ---
 title: 'OpenTelemetry with Jaeger'
-description: 'Instrumentation, the Collector, and tail sampling — how the pieces fit for distributed tracing on Kubernetes, and the two things that decide whether traces are actually useful.'
+description: 'Instrumentation, the Collector, and tail sampling. How the pieces fit for distributed tracing on Kubernetes, and the two things that decide whether traces are actually useful.'
 pubDate: 2026-07-18
 tag: observability
 hash: c17d3b6
@@ -15,7 +15,7 @@ OpenTelemetry is how you produce traces. Jaeger is where you look at them.
 
 **Instrumentation** in your application produces spans. Either auto-instrumentation, which patches known libraries, or manual spans you add.
 
-**The Collector** receives spans, processes them — batching, sampling, enrichment — and exports them onward. It is optional in theory and essential in practice.
+**The Collector** receives spans, processes them (batching, sampling, enrichment) and exports them onward. It is optional in theory and essential in practice.
 
 **Jaeger** stores traces and provides the UI. Modern Jaeger accepts OTLP directly, so you no longer need Jaeger-specific client libraries or agents. Jaeger v2 is itself built on the OpenTelemetry Collector.
 
@@ -105,11 +105,11 @@ service:
 
 Order matters in that processor list. `memory_limiter` goes first so it can shed load before anything else allocates. `batch` goes last so it batches the final form of the data. Getting this backwards is a common cause of Collector OOMs under load.
 
-`k8sattributes` is the one that turns traces from useful into navigable — every span gets tagged with its namespace, deployment, and node, so you can ask "show me slow spans from the checkout deployment in prod" instead of scrolling.
+`k8sattributes` is the one that turns traces from useful into navigable. Every span gets tagged with its namespace, deployment, and node, so you can ask "show me slow spans from the checkout deployment in prod" instead of scrolling.
 
 ## Tail sampling: the thing that makes this affordable
 
-Head sampling — deciding at the start of a request — is cheap and keeps the wrong traces. It cannot know the request will fail, because it decides before that happens.
+Head sampling (deciding at the start of a request) is cheap and keeps the wrong traces. It cannot know the request will fail, because it decides before that happens.
 
 Tail sampling buffers complete traces and decides after seeing everything:
 
@@ -135,11 +135,11 @@ processors:
 
 Keep every error, every request over a second, and 1% of everything else for baseline comparison. Storage drops by an order of magnitude and you keep the traces you would actually open.
 
-One constraint that catches people: tail sampling requires all spans of a trace to reach the same Collector instance. With multiple replicas you need a two-tier setup — a first layer that routes by trace ID using the `loadbalancing` exporter, and a second layer that does the sampling. Skip this and you will silently sample fragments of traces, which is worse than no sampling because the gaps look like missing instrumentation.
+One constraint that catches people: tail sampling requires all spans of a trace to reach the same Collector instance. With multiple replicas you need a two-tier setup. A first layer that routes by trace ID using the `loadbalancing` exporter, and a second layer that does the sampling. Skip this and you will silently sample fragments of traces, which is worse than no sampling because the gaps look like missing instrumentation.
 
 ## Deploying Jaeger
 
-For anything beyond a demo, Jaeger needs real storage — Elasticsearch, OpenSearch, or Cassandra. The all-in-one image keeps traces in memory and loses them on restart; it is for local development only.
+For anything beyond a demo, Jaeger needs real storage: Elasticsearch, OpenSearch, or Cassandra. The all-in-one image keeps traces in memory and loses them on restart; it is for local development only.
 
 ```yaml
 apiVersion: jaegertracing.io/v1
@@ -172,13 +172,13 @@ For a trace to span services, the `traceparent` header must survive every hop. I
 - **Message queues.** HTTP propagation is automatic; queues are not. You must inject context into message headers on publish and extract on consume, by hand.
 - **Custom HTTP clients.** Auto-instrumentation patches known libraries. A hand-rolled client, or one wrapped oddly, is not patched.
 - **Async work.** Spawning a goroutine or a thread pool task without passing context loses the parent.
-- **Gateways and proxies.** Most preserve unknown headers, but a strict allow-list will strip `traceparent`. Check this early — it is invisible and produces exactly the symptom above.
+- **Gateways and proxies.** Most preserve unknown headers, but a strict allow-list will strip `traceparent`. Check this early. It is invisible and produces exactly the symptom above.
 
 Standardise on W3C Trace Context (`tracecontext`) unless you have legacy B3 propagation to support, in which case configure both during migration.
 
 ## Add spans where the questions are
 
-Auto-instrumentation gives you HTTP handlers and database calls. That is a good skeleton and it is not enough — it shows time inside `POST /checkout` without showing which part.
+Auto-instrumentation gives you HTTP handlers and database calls. That is a good skeleton and it is not enough. It shows time inside `POST /checkout` without showing which part.
 
 Add manual spans around the parts you would want broken out at 3am:
 
@@ -193,7 +193,7 @@ with tracer.start_as_current_span("fraud_check") as span:
     span.set_attribute("fraud.decision", result.decision)
 ```
 
-Attributes are what make traces searchable. `payment.provider` as an attribute lets you ask whether one provider is slower than another — a question you cannot answer from span names alone.
+Attributes are what make traces searchable. `payment.provider` as an attribute lets you ask whether one provider is slower than another: a question you cannot answer from span names alone.
 
 Keep cardinality in mind: attributes on spans are far cheaper than labels on metrics, so a user ID is acceptable here in a way it never is on a Prometheus counter.
 
@@ -209,4 +209,4 @@ logger.info("payment failed", extra={"trace_id": trace_id})
 
 Now an error log links to the trace showing exactly what that request did. With exemplars, Prometheus can attach trace IDs to latency histogram buckets, so you can click a p99 spike on a Grafana panel and land on a trace from that bucket.
 
-That path — dashboard spike to specific slow request in two clicks — is what tracing is for. Everything else is setup.
+That path (dashboard spike to specific slow request in two clicks) is what tracing is for. Everything else is setup.

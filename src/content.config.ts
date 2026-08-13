@@ -9,7 +9,7 @@ const posts = defineCollection({
 		description: z.string(),
 		pubDate: z.coerce.date(),
 		updatedDate: z.coerce.date().optional(),
-		/** Single primary tag — drives the badge and the /tags/<tag>/ page. */
+		/** Single primary tag. Drives the badge and the /tags/<tag>/ page. */
 		tag: z.string(),
 		/** Fake-but-stable commit hash shown in the changelog row. */
 		hash: z.string().regex(/^[0-9a-f]{7}$/, 'hash must be 7 lowercase hex chars'),

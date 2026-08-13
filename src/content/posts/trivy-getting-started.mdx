@@ -36,7 +36,7 @@ trivy image \
   ghcr.io/org/api:1.4.2
 ```
 
-`--ignore-unfixed` drops vulnerabilities with no available fix. This is the single most important flag in the tool. A CVE with no upstream patch is not something a developer can act on in a pull request — reporting it in a blocking gate teaches people to bypass the gate.
+`--ignore-unfixed` drops vulnerabilities with no available fix. This is the single most important flag in the tool. A CVE with no upstream patch is not something a developer can act on in a pull request. Reporting it in a blocking gate teaches people to bypass the gate.
 
 Track unfixed CVEs separately, on a schedule, as a report to the platform team. That is a base-image decision, not a per-PR decision.
 
@@ -110,7 +110,7 @@ Cache the vulnerability database in CI or every job downloads several hundred me
 trivy config --severity HIGH,CRITICAL ./deploy
 ```
 
-The Kubernetes checks (`AVD-KSV-*`) are the useful ones if you are not already running an admission controller — privileged containers, missing resource limits, writable root filesystems, host namespace access. There is real overlap with a Kyverno baseline policy set, which is fine: Trivy catches it at build time, Kyverno catches it at admission. Different points in the lifecycle, and manifests are not the only path to a running pod.
+The Kubernetes checks (`AVD-KSV-*`) are the useful ones if you are not already running an admission controller: privileged containers, missing resource limits, writable root filesystems, host namespace access. There is real overlap with a Kyverno baseline policy set, which is fine: Trivy catches it at build time, Kyverno catches it at admission. Different points in the lifecycle, and manifests are not the only path to a running pod.
 
 ## Secret scanning is on by default
 

@@ -8,12 +8,12 @@ import type { ImageMetadata } from 'astro';
  * The photo lives at `src/assets/portrait.{jpg,jpeg,png,webp}` so Astro can
  * resize it and emit modern formats. It is looked up with a glob rather than a
  * static import so a missing file degrades to a monogram instead of failing the
- * build — drop the file in and it appears.
+ * build. Drop the file in and it appears.
  *
  * If the crop cuts the face awkwardly, nudge --portrait-pos in global.css.
  *
  * The image is displayed at 220px (160px on mobile), so it is emitted at 1x and
- * 2x of that and nothing larger — passing `widths` instead makes the fallback
+ * 2x of that and nothing larger. Passing `widths` instead makes the fallback
  * `src` the full-size file, which is a ~116KB download nobody uses.
  */
 const found = import.meta.glob<{ default: ImageMetadata }>(
@@ -41,5 +41,4 @@ const portrait = Object.values(found)[0]?.default;
 			</div>
 		)
 	}
-	<span class="portrait-badge">open to talk</span>
 </div>

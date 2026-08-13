@@ -13,9 +13,9 @@ Terraform reconciles when someone runs it. Crossplane reconciles continuously. A
 
 ## What each one actually is
 
-**Terraform** is a CLI that reads declarative config, diffs it against recorded state, and produces a plan of API calls. The plan is the product — a human reads it before anything changes. State lives in a file you are responsible for storing and locking.
+**Terraform** is a CLI that reads declarative config, diffs it against recorded state, and produces a plan of API calls. The plan is the product. A human reads it before anything changes. State lives in a file you are responsible for storing and locking.
 
-**Crossplane** is a set of Kubernetes controllers. Infrastructure becomes custom resources; controllers reconcile them against the provider's API on a loop, forever. There is no separate state store — the cluster is the state, same as any other Kubernetes object.
+**Crossplane** is a set of Kubernetes controllers. Infrastructure becomes custom resources; controllers reconcile them against the provider's API on a loop, forever. There is no separate state store. The cluster is the state, same as any other Kubernetes object.
 
 ## Drift
 
@@ -23,19 +23,19 @@ This is the sharpest difference and the one worth deciding on first.
 
 Someone opens the AWS console and widens a security group at 2am during an incident.
 
-With Terraform, that change persists until the next `plan` runs. You find out at the next apply — could be an hour, could be next sprint — and it surfaces as a diff in a plan that also contains three unrelated changes, which is exactly when people skim.
+With Terraform, that change persists until the next `plan` runs. You find out at the next apply (could be an hour, could be next sprint) and it surfaces as a diff in a plan that also contains three unrelated changes, which is exactly when people skim.
 
 With Crossplane, the controller notices within its poll interval and puts it back. The console change simply does not survive.
 
-Whether that is good depends entirely on your incident culture. Continuous reconciliation is a strong guarantee, and it will also fight an engineer who is mid-incident and does not know Crossplane owns that resource. Both properties are real. Teams that adopt Crossplane successfully tend to pair it with a documented break-glass path — annotate the resource to pause reconciliation, fix the thing, then fix the config.
+Whether that is good depends entirely on your incident culture. Continuous reconciliation is a strong guarantee, and it will also fight an engineer who is mid-incident and does not know Crossplane owns that resource. Both properties are real. Teams that adopt Crossplane successfully tend to pair it with a documented break-glass path: annotate the resource to pause reconciliation, fix the thing, then fix the config.
 
 ## Plan is a real advantage
 
 Terraform's `plan` output has no clean Crossplane equivalent, and this matters more than the feature list suggests.
 
-`terraform plan` tells you *this will destroy and recreate your database* before it happens. That preview is a genuine safety mechanism and it is the reason Terraform remains the sensible choice for foundational infrastructure — VPCs, subnets, IAM, anything where an accidental replacement is a very bad afternoon.
+`terraform plan` tells you *this will destroy and recreate your database* before it happens. That preview is a genuine safety mechanism and it is the reason Terraform remains the sensible choice for foundational infrastructure. VPCs, subnets, IAM, anything where an accidental replacement is a very bad afternoon.
 
-Crossplane applies a resource and you watch the status conditions to see what happened. Tooling has improved — you can dry-run against the API server, and composition functions can be tested in isolation — but there is nothing that shows you the full blast radius of a change before you commit it. Push a bad composition and it starts reconciling immediately across every claim that uses it.
+Crossplane applies a resource and you watch the status conditions to see what happened. Tooling has improved (you can dry-run against the API server, and composition functions can be tested in isolation) but there is nothing that shows you the full blast radius of a change before you commit it. Push a bad composition and it starts reconciling immediately across every claim that uses it.
 
 ## Abstraction is where Crossplane earns its place
 
@@ -82,7 +82,7 @@ The cost is real: you are now maintaining an API. Schema changes need versioning
 
 Terraform's provider coverage is far ahead, and this is not close. If you need to configure a niche SaaS, Terraform probably has a provider and Crossplane probably does not.
 
-Crossplane's provider situation improved considerably with Upjet, which generates providers from Terraform providers — the major cloud providers are well covered and generated from the same upstream schemas. Coverage outside the big three is thinner.
+Crossplane's provider situation improved considerably with Upjet, which generates providers from Terraform providers. The major cloud providers are well covered and generated from the same upstream schemas. Coverage outside the big three is thinner.
 
 Also worth knowing: Terraform's licence changed to BUSL in 2023, prompting the OpenTofu fork. If licensing matters to your organisation, that is now a decision you have to make explicitly rather than a default.
 
@@ -92,14 +92,14 @@ The split most platform teams converge on:
 
 **Terraform for foundations.** Accounts, VPCs, subnets, transit gateways, IAM roles, EKS clusters themselves, DNS zones. Changes rarely, changes dangerously, benefits from a plan someone reads. Run by the platform team from a pipeline.
 
-**Crossplane for the self-service layer.** Databases, queues, buckets, cache instances — the things product teams request often and that fit a small number of shapes. Run continuously, consumed by teams through your own APIs.
+**Crossplane for the self-service layer.** Databases, queues, buckets, cache instances: the things product teams request often and that fit a small number of shapes. Run continuously, consumed by teams through your own APIs.
 
 There is a bootstrap ordering here that is easy to get wrong: Terraform builds the cluster, then Crossplane runs on that cluster and provisions everything else. Do not use Crossplane to manage the cluster it runs on.
 
 ## Choosing, if you must choose one
 
-**Terraform only** — you have no Kubernetes, or a small team, or infrastructure that changes rarely and is managed by the people who own it. Adding a control plane to run one team's infrastructure is not worth it.
+**Terraform only**. You have no Kubernetes, or a small team, or infrastructure that changes rarely and is managed by the people who own it. Adding a control plane to run one team's infrastructure is not worth it.
 
-**Crossplane only** — everything already runs on Kubernetes, GitOps is how you deploy, and your main pain is that product teams have to raise tickets for infrastructure. That last symptom is the strongest signal.
+**Crossplane only**. Everything already runs on Kubernetes, GitOps is how you deploy, and your main pain is that product teams have to raise tickets for infrastructure. That last symptom is the strongest signal.
 
-The failure mode worth avoiding is adopting Crossplane for the technology rather than the abstraction. If you use it to write one custom resource per cloud resource, you have taken on a control plane and gained approximately nothing over Terraform. The value is in the Compositions — in the fact that a team asks for `size: small` and never learns what an RDS parameter group is.
+The failure mode worth avoiding is adopting Crossplane for the technology rather than the abstraction. If you use it to write one custom resource per cloud resource, you have taken on a control plane and gained approximately nothing over Terraform. The value is in the Compositions. In the fact that a team asks for `size: small` and never learns what an RDS parameter group is.

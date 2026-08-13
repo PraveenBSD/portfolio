@@ -1,13 +1,13 @@
 ---
 title: 'Checkov: getting started with standard policies'
-description: 'Static analysis for infrastructure as code — wiring it into CI without drowning in findings, plus baselines, suppressions, and custom policies that catch what the defaults miss.'
+description: 'Static analysis for infrastructure as code: wiring it into CI without drowning in findings, plus baselines, suppressions, and custom policies that catch what the defaults miss.'
 pubDate: 2026-07-28
 tag: devsecops
 hash: a90c73f
 readingTime: 8 min read
 ---
 
-Checkov scans infrastructure as code before it becomes infrastructure. Terraform, CloudFormation, Kubernetes manifests, Helm charts, Dockerfiles, GitHub Actions workflows — it parses them, runs a few thousand policies, and tells you which resources are misconfigured.
+Checkov scans infrastructure as code before it becomes infrastructure. Terraform, CloudFormation, Kubernetes manifests, Helm charts, Dockerfiles, GitHub Actions workflows. It parses them, runs a few thousand policies, and tells you which resources are misconfigured.
 
 The tool is easy. Adopting it without your team learning to ignore it is the actual problem.
 
@@ -43,7 +43,7 @@ Then in CI:
 checkov -d . --baseline .checkov.baseline
 ```
 
-Existing debt is captured, new debt is blocked. You can burn down the baseline on your own schedule, and — importantly — a developer who has never run Checkov does not get a hundred failures on their first PR.
+Existing debt is captured, new debt is blocked. You can burn down the baseline on your own schedule, and (importantly) a developer who has never run Checkov does not get a hundred failures on their first PR.
 
 Regenerate the baseline deliberately, never automatically. A CI job that refreshes the baseline is a CI job that approves every new finding.
 
@@ -69,7 +69,7 @@ compact: true
 quiet: true
 ```
 
-Two things worth copying from that example. First, every `skip-check` has a comment explaining *why*. A bare list of check IDs becomes unmaintainable within months — nobody knows whether a skip is still valid, so nobody ever removes one.
+Two things worth copying from that example. First, every `skip-check` has a comment explaining *why*. A bare list of check IDs becomes unmaintainable within months. Nobody knows whether a skip is still valid, so nobody ever removes one.
 
 Second, `soft-fail-on: LOW` reports low-severity findings without failing the build. Fail on what you will actually act on.
 
@@ -114,7 +114,7 @@ jobs:
           sarif_file: results.sarif
 ```
 
-SARIF output puts findings inline on the pull request diff rather than in a log nobody opens. `if: always()` matters — without it, a failing scan skips the upload and the developer sees a red check with no detail.
+SARIF output puts findings inline on the pull request diff rather than in a log nobody opens. `if: always()` matters. Without it, a failing scan skips the upload and the developer sees a red check with no detail.
 
 Add the pre-commit hook too, so the feedback arrives before the push:
 
@@ -131,7 +131,7 @@ repos:
 
 This is the step most teams skip, and it is where Checkov gets substantially more accurate.
 
-Scanning HCL means Checkov evaluates source files with variables unresolved. Scanning a Terraform plan means it sees resolved values — the actual CIDR, the actual bucket policy, including everything that came from modules and remote state.
+Scanning HCL means Checkov evaluates source files with variables unresolved. Scanning a Terraform plan means it sees resolved values: the actual CIDR, the actual bucket policy, including everything that came from modules and remote state.
 
 ```sh
 terraform plan -out=tfplan.binary
@@ -145,7 +145,7 @@ Run source scanning on every PR for fast feedback, and plan scanning in the pipe
 
 ## Custom policies
 
-The built-in checks are generic cloud hygiene. Your organisation's rules — mandatory tags, approved regions, naming conventions — need custom policies. YAML is enough for most:
+The built-in checks are generic cloud hygiene. Your organisation's rules (mandatory tags, approved regions, naming conventions) need custom policies. YAML is enough for most:
 
 ```yaml
 metadata:
@@ -171,6 +171,6 @@ An owner tag policy is usually worth more than any single built-in check. It is 
 
 ## Where it fits
 
-Checkov is one layer. It reads configuration files, so it does not know about drift, resources created outside IaC, or anything running. Pair it with a runtime posture scan and image scanning — the [Trivy post](/writing/trivy-getting-started/) covers the container side.
+Checkov is one layer. It reads configuration files, so it does not know about drift, resources created outside IaC, or anything running. Pair it with a runtime posture scan and image scanning. The [Trivy post](/writing/trivy-getting-started/) covers the container side.
 
 Two habits decide whether it survives contact with your team: baseline before enforcing, and require a written reason for every suppression. Skip either and Checkov becomes a check people click through.

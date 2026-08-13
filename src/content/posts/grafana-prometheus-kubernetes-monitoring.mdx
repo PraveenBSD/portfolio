@@ -48,8 +48,8 @@ Four sources, and confusing them wastes a lot of time:
 | Source | Provides |
 | --- | --- |
 | **kubelet / cAdvisor** | actual container CPU, memory, network usage |
-| **kube-state-metrics** | object state from the API — replicas desired vs ready, pod phase, deployment conditions |
-| **node-exporter** | node-level OS metrics — disk, filesystem, load |
+| **kube-state-metrics** | object state from the API: replicas desired vs ready, pod phase, deployment conditions |
+| **node-exporter** | node-level OS metrics: disk, filesystem, load |
 | **your app** | request rates, latency, queue depth, business metrics |
 
 The distinction that matters: `container_memory_working_set_bytes` (cAdvisor) is memory a pod is *using*. `kube_pod_container_resource_limits` (kube-state-metrics) is what it is *allowed*. You need both to answer "is this pod about to be OOM killed", which is the actual question.
@@ -76,7 +76,7 @@ spec:
       path: /metrics
 ```
 
-The `port` is the Service's *named* port, not a number — a frequent source of silently-not-scraping. Check `/targets` in the Prometheus UI after adding one; it will tell you exactly why a target is down.
+The `port` is the Service's *named* port, not a number: a frequent source of silently-not-scraping. Check `/targets` in the Prometheus UI after adding one; it will tell you exactly why a target is down.
 
 ## Alert on symptoms, not causes
 
@@ -123,7 +123,7 @@ spec:
 
 Three things in there are non-negotiable. `for:` prevents a single scrape blip from paging. `runbook_url` means whoever is woken has somewhere to start. And `team:` is what lets Alertmanager route to the right people rather than a channel everyone mutes.
 
-The RED method is a good default for request-driven services: **R**ate, **E**rrors, **D**uration. USE — **U**tilisation, **S**aturation, **E**rrors — fits infrastructure. Between them they cover most of what is worth alerting on.
+The RED method is a good default for request-driven services: **R**ate, **E**rrors, **D**uration. USE (**U**tilisation, **S**aturation, **E**rrors) fits infrastructure. Between them they cover most of what is worth alerting on.
 
 ## The queries you will actually use
 
@@ -139,7 +139,7 @@ Pods in crash loops:
 rate(kube_pod_container_status_restarts_total[15m]) * 900 > 3
 ```
 
-Memory close to its limit — the leading indicator for the first query:
+Memory close to its limit: the leading indicator for the first query:
 
 ```promql
 container_memory_working_set_bytes{container!=""}
@@ -162,7 +162,7 @@ rate(container_cpu_cfs_throttled_periods_total[5m])
   / rate(container_cpu_cfs_periods_total[5m]) > 0.25
 ```
 
-That last one is worth an alert on its own. A service with a CPU limit gets throttled at the limit even when the node is idle, and the symptom — periodic latency spikes with normal-looking CPU graphs — is genuinely confusing if you are not looking for it.
+That last one is worth an alert on its own. A service with a CPU limit gets throttled at the limit even when the node is idle, and the symptom (periodic latency spikes with normal-looking CPU graphs) is genuinely confusing if you are not looking for it.
 
 ## Recording rules for expensive queries
 
@@ -180,7 +180,7 @@ A dashboard panel running a heavy aggregation across thousands of series will be
               / sum by (job) (rate(http_requests_total[5m]))
 ```
 
-The `level:metric:operation` naming convention is worth following — it tells you the aggregation level at a glance.
+The `level:metric:operation` naming convention is worth following. It tells you the aggregation level at a glance.
 
 ## Dashboards as code
 
@@ -201,7 +201,7 @@ Resist building many dashboards. A small number that people know by heart beats 
 
 ## Cardinality will get you
 
-Prometheus memory scales with active series. Series count is the product of every label's distinct values — so one label with unbounded values will take the whole thing down.
+Prometheus memory scales with active series. Series count is the product of every label's distinct values, so one label with unbounded values will take the whole thing down.
 
 Never label a metric with a user ID, request ID, email, full URL path, or trace ID. `path="/orders/12345"` creates a series per order.
 
@@ -220,16 +220,16 @@ Drop what you do not need at scrape time:
       action: drop
 ```
 
-High-cardinality context belongs on traces, not metrics — which is one of the better arguments for having tracing set up alongside.
+High-cardinality context belongs on traces, not metrics, which is one of the better arguments for having tracing set up alongside.
 
 ## Beyond one Prometheus
 
 A single Prometheus is fine to a surprising scale. When you outgrow it, the ordering is usually: `remote_write` to long-term storage first, then federation or a scale-out backend.
 
-Thanos and Mimir both solve long retention and a global query view across clusters. Either is a real operational commitment — do not adopt one until a single Prometheus with 15 days of retention is demonstrably not enough.
+Thanos and Mimir both solve long retention and a global query view across clusters. Either is a real operational commitment. Do not adopt one until a single Prometheus with 15 days of retention is demonstrably not enough.
 
 ## What good looks like
 
 You have a handful of alerts. Each one has a runbook, routes to a specific team, and has fired for a real reason in the last quarter. Nobody has muted the alerts channel.
 
-If your alerts fire constantly and people have learned to ignore them, deleting most of them is a genuine improvement in reliability — an alert nobody reads is not monitoring, it is noise with a pager attached.
+If your alerts fire constantly and people have learned to ignore them, deleting most of them is a genuine improvement in reliability. An alert nobody reads is not monitoring, it is noise with a pager attached.

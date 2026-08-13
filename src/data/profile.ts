@@ -1,17 +1,17 @@
 /**
- * The content of the home page, as data. Edit here — not in the markup.
+ * The content of the home page, as data. Edit here, not in the markup.
  */
 
 export const HERO = {
 	now: 'Platform Engineering · Chennai, India',
-	headlineLead: 'I build the platforms',
-	headlineAccent: 'other engineers build on.',
-	lede: 'Platform engineering lead with 8 years turning unstable, hand-run systems into declarative, self-service platforms. I write here about the real work: GitOps, internal developer platforms, SRE, and keeping the cloud bill honest.',
+	headlineLead: 'I work on internal developer platforms',
+	headlineAccent: 'and the infrastructure behind them.',
+	lede: 'Platform engineering lead with eight years in SRE and infrastructure. My work covers GitOps, self-service tooling, Kubernetes, reliability, and cloud cost. I write here about that work.',
 } as const;
 
 /**
- * Stat tiles. `pct` drives the meter fill and is a magnitude 0–100, so the
- * `basis` label has to say what the bar is measuring — availability is
+ * Stat tiles. `pct` drives the meter fill and is a magnitude 0 to 100, so the
+ * `basis` label has to say what the bar is measuring. Availability is
  * "of 100% uptime", the rest are "reduction achieved".
  */
 export const STATS = [
@@ -52,13 +52,13 @@ export const STATS = [
 /**
  * Career timeline. `start`/`end` are decimal years and drive the bar geometry;
  * `end: null` means "present". Colours are assigned by index in fixed order and
- * never cycled — slot 1 violet, 2 cyan, 3 pink.
+ * never cycled: slot 1 iris, 2 orange, 3 teal.
  */
-export const TIMELINE_END = 2026.6; // "present" — bump as time passes
+export const TIMELINE_END = 2026.6; // "present". Bump as time passes
 
 export const EXPERIENCE = [
 	{
-		when: '2025 — Present',
+		when: '2025 to Present',
 		start: 2025,
 		end: null,
 		company: 'M2P Fintech',
@@ -68,7 +68,7 @@ export const EXPERIENCE = [
 		highlights: ['Terraform', 'Crossplane', 'ArgoCD', 'Kyverno'],
 	},
 	{
-		when: '2021 — 2025',
+		when: '2021 to 2025',
 		start: 2021,
 		end: 2025,
 		company: 'Mad Street Den',
@@ -78,7 +78,7 @@ export const EXPERIENCE = [
 		highlights: ['Kubernetes', 'Observability', 'DR', 'FinOps'],
 	},
 	{
-		when: '2018 — 2021',
+		when: '2018 to 2021',
 		start: 2018,
 		end: 2021,
 		company: 'Qube Cinema Technologies',
@@ -101,7 +101,7 @@ export const WORK = [
 		slug: 'gitops-agents',
 		title: 'GitOps Auto-PR Agents',
 		blurb:
-			'Automation that raises pull requests for platform updates across every product repo — consistent propagation, human-in-the-loop merges.',
+			'Automation that raises pull requests for platform updates across every product repo, so upgrades propagate consistently while teams keep the merge.',
 		stack: ['GitOps', 'GitHub Actions', 'Go'],
 	},
 	{
@@ -121,9 +121,9 @@ export const WORK = [
 ] as const;
 
 export const ABOUT_PARAGRAPHS = [
-	"<strong>I'm Praveen — a platform engineer based in Chennai.</strong> I like the unglamorous middle of the stack: the paved roads, the reconciliation loops, the guardrails that turn “please raise a ticket” into “just push to main.”",
-	"Over eight years I've moved from firefighting SRE to building platforms product teams actually want to use — treating the platform as a product, with developer experience as the metric that matters.",
-	'This site is where I think out loud. New posts land most days: short, specific, and drawn from real work rather than trend cycles.',
+	"<strong>I'm Praveen, a platform engineer based in Chennai.</strong> I work on the middle of the stack: paved roads, reconciliation loops, and the guardrails that let teams deploy without raising a ticket.",
+	"Over eight years I have moved from SRE into platform work: Kubernetes migrations, observability, GitOps, and cost management. I try to treat the platform as a product, with developer experience as the measure.",
+	'This site is where I write that up. Posts are short and specific, drawn from work I have done.',
 ] as const;
 
 export const FACTS = [
@@ -131,5 +131,5 @@ export const FACTS = [
 	{ label: 'Based', value: 'Chennai, India' },
 	{ label: 'Focus', value: 'IDP · GitOps · SRE · FinOps' },
 	{ label: 'Stack', value: 'K8s · Terraform · Crossplane' },
-	{ label: 'Writing', value: 'Most days, on main' },
+	{ label: 'Writing', value: 'Notes on platform work' },
 ] as const;

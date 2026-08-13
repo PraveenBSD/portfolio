@@ -3,9 +3,9 @@ interface Props {
 	label: string;
 	value: string;
 	unit: string;
-	/** Magnitude 0–100 driving the meter fill. */
+	/** Magnitude 0 to 100 driving the meter fill. */
 	pct: number;
-	/** What the meter is measuring — the tiles mix "of 100%" with "reduction". */
+	/** What the meter is measuring. The tiles mix "of 100%" with "reduction". */
 	basis: string;
 	note: string;
 }
@@ -20,7 +20,7 @@ const fill = Math.max(0, Math.min(100, pct));
 	<div
 		class="meter"
 		role="img"
-		aria-label={`${label}: ${value}${unit} — ${basis}`}
+		aria-label={`${label}: ${value}${unit}, ${basis}`}
 	>
 		<span style={`width:${fill}%`}></span>
 	</div>

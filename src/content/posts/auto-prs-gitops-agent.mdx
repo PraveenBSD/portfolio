@@ -1,17 +1,17 @@
 ---
 title: 'Auto-PRs: the GitOps agent that keeps product repos in sync'
-description: "A small agent watches platform releases and opens pull requests into every product team's DevOps repo — so upgrades propagate consistently, but teams still hold the merge."
+description: "A small agent watches platform releases and opens pull requests into every product team's DevOps repo, so upgrades propagate consistently, but teams still hold the merge."
 pubDate: 2026-08-12
 tag: gitops
 hash: a1f3c9d
 readingTime: 6 min read
 ---
 
-Every platform team hits the same wall: you ship an upgrade, and now twenty product repos need the same change. Chase them by hand and you spend your week nagging. Force-push into their repos and you break the one rule GitOps exists to protect — the repo is the source of truth, owned by the team.
+Every platform team hits the same wall: you ship an upgrade, and now twenty product repos need the same change. Chase them by hand and you spend your week nagging. Force-push into their repos and you break the one rule GitOps exists to protect. The repo is the source of truth, owned by the team.
 
 So we built a small agent that threads the needle. When a platform release lands on `main`, it opens a pull request into each product team's DevOps repo with exactly the change they need, and stops there. The team reviews and merges on their own schedule.
 
-## Desired state, proposed — not imposed
+## Desired state: proposed, not imposed
 
 The mental model is the same reconciliation loop we use everywhere else. The platform declares a desired state; the agent computes the diff for each consumer; the pull request *proposes* convergence. Merge authority stays with the people who own the service.
 
@@ -37,4 +37,4 @@ on platform_release:
 
 Because trust is the platform's real product. The first time an auto-merge breaks someone's prod, teams route around your platform for good. Keeping a human in the loop costs a few minutes per upgrade and buys years of goodwill.
 
-Six months in, platform upgrades that used to take two weeks of chasing now propagate in a day — and not once have we surprised a team. That's the whole game.
+Six months in, platform upgrades that used to take two weeks of chasing now propagate in a day, and not once have we surprised a team. That's the whole game.

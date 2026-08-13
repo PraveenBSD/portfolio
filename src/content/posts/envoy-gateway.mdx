@@ -7,7 +7,7 @@ hash: b41d7e2
 readingTime: 9 min read
 ---
 
-Envoy Gateway is a CNCF project that takes Envoy Proxy — already the data plane under Istio, Contour, and most managed API gateways — and puts a Gateway API control plane in front of it. The pitch is that you get Envoy's data-plane capability without operating a service mesh or writing Envoy config by hand.
+Envoy Gateway is a CNCF project that takes Envoy Proxy (already the data plane under Istio, Contour, and most managed API gateways) and puts a Gateway API control plane in front of it. The pitch is that you get Envoy's data-plane capability without operating a service mesh or writing Envoy config by hand.
 
 That pitch mostly holds. Here is what the pieces actually are.
 
@@ -15,8 +15,8 @@ That pitch mostly holds. Here is what the pieces actually are.
 
 Two layers, and keeping them straight makes everything else easier:
 
-- **Control plane** — a single `envoy-gateway` deployment. It watches Gateway API resources and translates them into Envoy xDS configuration.
-- **Data plane** — one Envoy deployment *per Gateway*, created for you. Your traffic goes through these; the control plane is not in the request path.
+- **Control plane**: a single `envoy-gateway` deployment. It watches Gateway API resources and translates them into Envoy xDS configuration.
+- **Data plane**: one Envoy deployment *per Gateway*, created for you. Your traffic goes through these; the control plane is not in the request path.
 
 That second point matters for availability planning. If the control plane is down, existing Envoy pods keep serving with their last known config. You lose the ability to *change* routing, not the ability to route.
 
@@ -44,7 +44,7 @@ Create a Gateway referencing that class and Envoy Gateway provisions an Envoy de
 
 ## Shaping the data plane with EnvoyProxy
 
-The generated Envoy deployment is fine for a demo and rarely fine for production — you will want replica counts, resource requests, and probably an internal load balancer for some gateways.
+The generated Envoy deployment is fine for a demo and rarely fine for production. You will want replica counts, resource requests, and probably an internal load balancer for some gateways.
 
 That is what the `EnvoyProxy` CRD is for. It attaches to a GatewayClass (or a single Gateway) via `parametersRef`:
 
@@ -140,7 +140,7 @@ spec:
       requestTimeout: 30s
 ```
 
-Note `type: Local` — that rate limit is per Envoy pod. With three replicas the effective limit is roughly triple what you wrote. For a real shared limit you need `type: Global`, which requires deploying the rate limit service and a Redis backend. This trips people up constantly; local rate limiting is a load-shedding tool, not a quota tool.
+Note `type: Local`. That rate limit is per Envoy pod. With three replicas the effective limit is roughly triple what you wrote. For a real shared limit you need `type: Global`, which requires deploying the rate limit service and a Redis backend. This trips people up constantly; local rate limiting is a load-shedding tool, not a quota tool.
 
 ## JWT auth without a sidecar
 
@@ -166,16 +166,16 @@ spec:
             header: x-user-id
 ```
 
-Claims land as headers, so your service reads `x-user-id` instead of parsing tokens. Make sure the service is not reachable except through the gateway, or that header is trivially spoofable — a NetworkPolicy, not an assumption.
+Claims land as headers, so your service reads `x-user-id` instead of parsing tokens. Make sure the service is not reachable except through the gateway, or that header is trivially spoofable: a NetworkPolicy, not an assumption.
 
 ## The escape hatch
 
 Envoy has features Envoy Gateway has not modelled yet. `EnvoyPatchPolicy` lets you patch the generated xDS directly with JSON patches.
 
-It works, and you should treat it as a last resort. Patches are written against generated resource names, so they break when the translation layer changes — meaning an Envoy Gateway upgrade can silently drop your patch. It is disabled by default for exactly this reason. If you use it, write a test that fails when the patch stops applying.
+It works, and you should treat it as a last resort. Patches are written against generated resource names, so they break when the translation layer changes, meaning an Envoy Gateway upgrade can silently drop your patch. It is disabled by default for exactly this reason. If you use it, write a test that fails when the patch stops applying.
 
 ## When it fits
 
-Envoy Gateway suits you if you want Envoy's data plane, Gateway API's role separation, and no mesh. It is a smaller operational surface than Istio by a wide margin — one control-plane deployment, no sidecars, no mTLS story to manage.
+Envoy Gateway suits you if you want Envoy's data plane, Gateway API's role separation, and no mesh. It is a smaller operational surface than Istio by a wide margin: one control-plane deployment, no sidecars, no mTLS story to manage.
 
 It suits you less if you already run a mesh (use its gateway), if you need mature multi-cluster routing, or if your team's existing operational knowledge is all in NGINX. The policy CRDs are Envoy Gateway-specific, so that portion of your config does not move to another implementation for free.

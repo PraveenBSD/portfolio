@@ -1,13 +1,13 @@
 ---
 title: 'Kyverno: getting started with standard policies'
-description: 'Policy as Kubernetes resources — the four rule types, a starter set worth running in any cluster, and how to roll enforcement out without blocking every team on day one.'
+description: 'Policy as Kubernetes resources: the four rule types, a starter set worth running in any cluster, and how to roll enforcement out without blocking every team on day one.'
 pubDate: 2026-08-02
 tag: devsecops
 hash: e2740aa
 readingTime: 10 min read
 ---
 
-Kyverno's central idea is that policies should be Kubernetes resources. No new language, no Rego, no separate mental model — a policy is YAML you apply with `kubectl`, matched against resources with the same selectors you already use.
+Kyverno's central idea is that policies should be Kubernetes resources. No new language, no Rego, no separate mental model. A policy is YAML you apply with `kubectl`, matched against resources with the same selectors you already use.
 
 That design choice is most of why it gets adopted. The learning curve is roughly one afternoon.
 
@@ -19,7 +19,7 @@ helm install kyverno kyverno/kyverno \
   --set admissionController.replicas=3
 ```
 
-Three replicas is not optional in production. Kyverno sits in the admission path as a webhook — if every replica is down and your webhook `failurePolicy` is `Fail`, you cannot admit pods. Run it spread across zones, and give it a PodDisruptionBudget.
+Three replicas is not optional in production. Kyverno sits in the admission path as a webhook. If every replica is down and your webhook `failurePolicy` is `Fail`, you cannot admit pods. Run it spread across zones, and give it a PodDisruptionBudget.
 
 ## Four things a rule can do
 
@@ -54,7 +54,7 @@ kubectl get clusterpolicyreport
 
 You will find violations in namespaces you forgot existed, and in third-party Helm charts you do not control. Fixing those *before* flipping to `Enforce` is the difference between a policy rollout and an incident.
 
-Note that newer Kyverno versions moved this setting under the rule's `validate` block as `failureAction`, with the top-level field deprecated. Check which your version expects — the docs for your installed release are authoritative.
+Note that newer Kyverno versions moved this setting under the rule's `validate` block as `failureAction`, with the top-level field deprecated. Check which your version expects. The docs for your installed release are authoritative.
 
 ## A starter set
 
@@ -130,7 +130,7 @@ Consider requiring digests instead of tags for anything in production. `image: "
                       "?*": "?*"
 ```
 
-**Restrict registries.** Cheap supply-chain control — pods may only run images from registries you control.
+**Restrict registries.** Cheap supply-chain control. Pods may only run images from registries you control.
 
 ```yaml
     - name: allowed-registries
@@ -171,7 +171,7 @@ helm install kyverno-policies kyverno/kyverno-policies \
   --set validationFailureAction=Audit
 ```
 
-Baseline blocks the genuinely dangerous things — host namespaces, privileged containers, hostPath. Restricted additionally requires non-root, dropped capabilities, and seccomp. Most workloads pass baseline unmodified; restricted needs application changes.
+Baseline blocks the genuinely dangerous things: host namespaces, privileged containers, hostPath. Restricted additionally requires non-root, dropped capabilities, and seccomp. Most workloads pass baseline unmodified; restricted needs application changes.
 
 ## Mutation: defaults instead of rejections
 
@@ -193,7 +193,7 @@ The nicest thing about Kyverno is that it can fix a resource instead of rejectin
 
 The `+()` anchor means "add this if absent, leave it alone if present". You get a safer default without overriding teams who made a deliberate choice.
 
-Use mutation for defaults, validation for things that must never happen. A policy that silently changes security-relevant behaviour is worse than one that rejects loudly — mutate to a *safer* value, never a more permissive one.
+Use mutation for defaults, validation for things that must never happen. A policy that silently changes security-relevant behaviour is worse than one that rejects loudly: mutate to a *safer* value, never a more permissive one.
 
 ## Generation: namespace bootstrapping
 
@@ -221,15 +221,15 @@ Use mutation for defaults, validation for things that must never happen. A polic
 
 1. Install, then install `kyverno-policies` at baseline, everything in `Audit`.
 2. Wait a week. Read the PolicyReports.
-3. Publish what you found — per team, with counts. Most violations are one bad Helm chart default repeated fifty times.
+3. Publish what you found. Per team, with counts. Most violations are one bad Helm chart default repeated fifty times.
 4. Fix the platform-owned violations yourself. Do not ask teams to fix things you shipped.
 5. Flip policies to `Enforce` one at a time, easiest first. Requests and labels before Pod Security.
 6. Exclude namespaces explicitly and visibly rather than weakening a policy for everyone.
 
-The failure mode is going straight to `Enforce` cluster-wide because the policies look obviously correct. They are correct. They will also block a deploy for a team that has never heard of Kyverno, at which point the policy engine becomes the thing that broke production — and you will spend more effort rebuilding trust than you saved.
+The failure mode is going straight to `Enforce` cluster-wide because the policies look obviously correct. They are correct. They will also block a deploy for a team that has never heard of Kyverno, at which point the policy engine becomes the thing that broke production, and you will spend more effort rebuilding trust than you saved.
 
 ## Where this is heading
 
-Kubernetes now has built-in `ValidatingAdmissionPolicy` using CEL, which handles simple validation without a webhook in the path. It is genuinely better for the "reject if field is missing" case — no webhook availability to worry about.
+Kubernetes now has built-in `ValidatingAdmissionPolicy` using CEL, which handles simple validation without a webhook in the path. It is genuinely better for the "reject if field is missing" case: no webhook availability to worry about.
 
 It does not do mutation, generation, or image verification. Kyverno can also generate `ValidatingAdmissionPolicy` resources from its own policies, which is a reasonable direction: author once, let the API server enforce the simple cases natively and Kyverno handle the rest.

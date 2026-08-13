@@ -6,7 +6,7 @@ import { EXPERIENCE, TIMELINE_END } from '../data/profile';
  * so labels reflow and stay at real font sizes on small screens.
  *
  * Colours come from the validated categorical slots and are assigned by index
- * in fixed order — never cycled, and never reassigned when the list changes.
+ * in fixed order, never cycled, and never reassigned when the list changes.
  */
 const SLOTS = ['var(--series-1)', 'var(--series-2)', 'var(--series-3)'];
 
@@ -20,7 +20,7 @@ const pos = (year: number) => ((year - spanStart) / total) * 100;
 const ticks: number[] = [];
 for (let y = Math.ceil(spanStart); y < Math.floor(spanEnd); y += 2) ticks.push(y);
 
-/** "3y", "1y 7m", "7m" — never rounds a partial year up to a whole one. */
+/** "3y", "1y 7m", "7m". Never rounds a partial year up to a whole one. */
 function humanise(years: number) {
 	const months = Math.round(years * 12);
 	const y = Math.floor(months / 12);

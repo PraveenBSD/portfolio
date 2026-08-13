@@ -3,11 +3,11 @@
    squared corners, hard offset shadows, heavy geometric display type.
 
    Blue-violet is dark enough that --accent (6.29:1) works as text, as a
-   graphical mark, AND as a fill with white on it — so unlike the previous
+   graphical mark, AND as a fill with white on it, so unlike the previous
    green palette there is no "fills only" tier to keep track of.
    --pop is the one exception: a pale tint for highlight backgrounds,
    which always carries --text, never white.
-   Chart colours are validated — do not substitute without re-running
+   Chart colours are validated. Do not substitute without re-running
    the validator.
    ============================================================ */
 
@@ -17,7 +17,7 @@
   --card:#FFFFFF;
   --card-2:#F7F7FE;
 
-  /* ink — blue-violet-tinted neutrals. 18.3 / 8.5 / 5.2 : 1 on white */
+  /* ink: blue-violet-tinted neutrals. 18.3 / 8.5 / 5.2 : 1 on white */
   --text:#12122B;
   --text-2:#4A4A66;
   --text-3:#6B6A85;
@@ -36,23 +36,23 @@
   --iris-700:#4338CA;
 
   /* accents. Every one of these clears 4.5:1 on white as text. */
-  --accent:#4F46E5;        /* 6.29 — text, marks, and fills with white on top */
-  --accent-ink:#4338CA;    /* 7.90 — links and emphasis */
-  --accent-bright:#6366F1; /* 4.47 — secondary marks */
+  --accent:#4F46E5;        /* 6.29: text, marks, and fills with white on top */
+  --accent-ink:#4338CA;    /* 7.90: links and emphasis */
+  --accent-bright:#6366F1; /* 4.47: secondary marks */
   --accent-deep:#3730A3;   /* 9.93 */
   --on-accent:#FFFFFF;     /* 6.29 on --accent */
-  --pop:#C7CBFE;           /* pale highlight fill — always carries --text */
+  --pop:#C7CBFE;           /* pale highlight fill, always carries --text */
   --teal:#0D9488;
   --cyan:#0891B2;
   --orange:#EA580C;
 
-  /* categorical chart slots — fixed order, never cycled.
+  /* categorical chart slots: fixed order, never cycled.
      Validated all-pairs on white: worst CVD ΔE 13.8, normal-vision 27.1 */
   --series-1:#4F46E5;
   --series-2:#EA580C;
   --series-3:#0D9488;
 
-  /* CRED-ish hard shadows — pure offset, no blur */
+  /* CRED-ish hard shadows: pure offset, no blur */
   --sh:4px 4px 0 0 var(--ink);
   --sh-sm:3px 3px 0 0 var(--ink);
   --sh-lg:6px 6px 0 0 var(--ink);
@@ -190,14 +190,6 @@ h1,h2,h3,.display{font-family:var(--font-display);letter-spacing:-0.03em;}
   display:grid;place-items:center;
   font-family:var(--font-display);font-size:80px;font-weight:700;color:var(--accent-deep);
   background:var(--iris-200);
-}
-.portrait-badge{
-  position:absolute;left:50%;bottom:-12px;transform:translateX(-50%);
-  font-family:var(--font-mono);font-size:10.5px;font-weight:500;
-  text-transform:uppercase;letter-spacing:0.08em;white-space:nowrap;
-  background:var(--accent);color:var(--on-accent);
-  border:var(--bw) solid var(--ink);box-shadow:2px 2px 0 0 var(--ink);
-  padding:4px 10px;
 }
 
 /* ---------- Buttons: squared, bordered, hard shadow, press on hover ---------- */

@@ -22,7 +22,7 @@ Here is the map: what each layer covers, what to use, and where it belongs.
 | **Container** | vulnerable base images | Trivy, Grype |
 | **Licence** | incompatible licences | Trivy, Syft + Grant |
 
-Most teams do SCA and container scanning, because those are easiest, and stop. That leaves your own code and your secrets unscanned — which is where the interesting incidents come from.
+Most teams do SCA and container scanning, because those are easiest, and stop. That leaves your own code and your secrets unscanned, which is where the interesting incidents come from.
 
 ## SAST: your code
 
@@ -41,11 +41,11 @@ rules:
 semgrep --config=auto --error .
 ```
 
-`--config=auto` pulls curated rulesets for the languages it detects. Start there, then add rules for your own footguns — the internal helper that must never be called with user input, the deprecated crypto wrapper, the direct DB access that should go through the repository layer.
+`--config=auto` pulls curated rulesets for the languages it detects. Start there, then add rules for your own footguns. The internal helper that must never be called with user input, the deprecated crypto wrapper, the direct DB access that should go through the repository layer.
 
 That last category is where SAST earns its cost. Generic rules find generic bugs, and your generic bugs are mostly already caught by your linter and type checker. A rule encoding *your* architecture's rules catches things no off-the-shelf ruleset can.
 
-CodeQL is more powerful and considerably slower — it builds a queryable database of your code and does real dataflow analysis, so it finds multi-step taint paths Semgrep misses. It is free for public repositories on GitHub. Run it nightly on main rather than per-PR; it is too slow for the inner loop.
+CodeQL is more powerful and considerably slower. It builds a queryable database of your code and does real dataflow analysis, so it finds multi-step taint paths Semgrep misses. It is free for public repositories on GitHub. Run it nightly on main rather than per-PR; it is too slow for the inner loop.
 
 Language-specific tools are still worth adding since they encode ecosystem knowledge: `gosec` for Go, `bandit` for Python, `eslint-plugin-security` for JavaScript.
 
@@ -57,15 +57,15 @@ Statistically, most of your attack surface is code you did not write.
 trivy fs --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed .
 ```
 
-Trivy reads lockfiles directly, so it understands the resolved dependency tree rather than the declared ranges. That distinction matters — the vulnerability is in what you install, not what you asked for.
+Trivy reads lockfiles directly, so it understands the resolved dependency tree rather than the declared ranges. That distinction matters. The vulnerability is in what you install, not what you asked for.
 
 The critical question SCA tools mostly cannot answer is *reachability*: is the vulnerable function ever called? A CVE in a code path your application never executes is not the same risk as one in your request handler, but almost every tool reports them identically. Until reachability analysis is mainstream, this is human triage, and it is why "zero CVEs" is the wrong target. Triaged and justified is the right one.
 
-Turn on automated dependency updates — Dependabot or Renovate — and treat that as the primary remediation path. Scanning tells you about the problem; automated updates fix it while nobody is looking.
+Turn on automated dependency updates (Dependabot or Renovate) and treat that as the primary remediation path. Scanning tells you about the problem; automated updates fix it while nobody is looking.
 
 ## Secrets: the one to do first
 
-If you run exactly one scanner, run this one. A leaked credential is not a theoretical vulnerability — it is an active incident with a known exploitation path.
+If you run exactly one scanner, run this one. A leaked credential is not a theoretical vulnerability. It is an active incident with a known exploitation path.
 
 ```sh
 gitleaks detect --source . --redact
@@ -89,7 +89,7 @@ repos:
 gitleaks detect --source . --log-opts="--all --full-history"
 ```
 
-Expect hits. When you find one, rotating the credential is the entire remediation — rewriting history is optional cleanup and does not un-leak anything. Anyone who cloned the repository already has it, and if the repository was ever public, assume it was scraped within minutes.
+Expect hits. When you find one, rotating the credential is the entire remediation. Rewriting history is optional cleanup and does not un-leak anything. Anyone who cloned the repository already has it, and if the repository was ever public, assume it was scraped within minutes.
 
 ## IaC and containers
 
@@ -101,7 +101,7 @@ This is what decides whether the programme survives. Match the gate to the feedb
 
 **Pre-commit (seconds).** Secrets only. Fast, and a secret caught here never needs rotating.
 
-**Pull request (under five minutes).** Semgrep on changed files, SCA on lockfile changes, IaC on changed files. Blocking, but only on new findings — use baselines. `semgrep --baseline-commit` is the equivalent of Checkov's baseline file.
+**Pull request (under five minutes).** Semgrep on changed files, SCA on lockfile changes, IaC on changed files. Blocking, but only on new findings. Use baselines. `semgrep --baseline-commit` is the equivalent of Checkov's baseline file.
 
 **Main branch (minutes).** Full-repo Semgrep, full SCA, container scan of the built image, SBOM generation. Blocking on the release path.
 
@@ -135,4 +135,4 @@ If you are beginning from nothing, in this order:
 6. **Trivy Operator in-cluster**, to see what is actually running.
 7. **CodeQL nightly**, once the rest is quiet enough that people still read the output.
 
-Each step is a week or two of work, and every one of them delivers value before the next begins. The temptation is to buy a platform that claims to do all six — which is fine, but it does not remove the triage work, and the triage work is the whole job.
+Each step is a week or two of work, and every one of them delivers value before the next begins. The temptation is to buy a platform that claims to do all six, which is fine, but it does not remove the triage work, and the triage work is the whole job.

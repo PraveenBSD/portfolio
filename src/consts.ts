@@ -6,14 +6,14 @@
 export const SITE = {
 	/**
 	 * The final public origin, no trailing slash. Drives canonical URLs, the
-	 * sitemap, RSS links, and OG tags — if this is wrong, every one of those
+	 * sitemap, RSS links, and OG tags. If this is wrong, every one of those
 	 * points somewhere else. Keep it in sync with public/robots.txt.
 	 */
 	url: 'https://praveenbsd.com',
-	title: 'Praveen B S D — Platform Engineering',
+	title: 'Praveen B S D | Platform Engineering',
 	shortTitle: 'Praveen B S D',
 	description:
-		'Praveen B S D builds internal developer platforms, self-service infrastructure, and the reliability, security, and cost foundations product teams ship on. Writing on platform engineering, GitOps, SRE, and FinOps.',
+		'Praveen B S D works on internal developer platforms and the infrastructure behind them. Writing on platform engineering, GitOps, Kubernetes, SRE, and cloud cost.',
 	author: 'Praveen B S D',
 	locale: 'en',
 } as const;
