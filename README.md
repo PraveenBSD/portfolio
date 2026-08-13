@@ -87,7 +87,19 @@ src/
 
 ## Design
 
-Light green gradient ground, neon green accents, and CRED-style structure: **squared corners, hard offset shadows, heavy geometric display type**. Every colour is a custom property in the `:root` block at the top of [`src/styles/global.css`](src/styles/global.css).
+Light blue-violet gradient ground, iris accents, and CRED-style structure: **squared corners, hard offset shadows, heavy geometric display type**. Every colour is a custom property in the `:root` block at the top of [`src/styles/global.css`](src/styles/global.css).
+
+Blue-violet is dark enough at full saturation that one accent covers every job — unlike the green palette this replaced, there is no "large fills only" tier to keep track of:
+
+| Token | | Contrast on white | Used for |
+| --- | --- | --- | --- |
+| `--accent` | `#4F46E5` | 6.29 | text, graphical marks, **and** fills with white on top |
+| `--accent-ink` | `#4338CA` | 7.90 | links and emphasis |
+| `--accent-bright` | `#6366F1` | 4.47 | secondary marks |
+| `--pop` | `#C7CBFE` | 1.53 | pale highlight fill — always carries `--text`, never white |
+| `--text` / `--text-2` / `--text-3` | | 18.3 / 8.5 / 5.2 | body, secondary, metadata |
+
+`--pop` is the single exception to "any accent can carry white". It is a tint for highlight backgrounds — the marker behind the hero headline, hover states — and it always takes dark ink.
 
 The structural language is three tokens — change these and the whole site follows:
 
@@ -95,7 +107,7 @@ The structural language is three tokens — change these and the whole site foll
 | --- | --- | --- |
 | `--bw` | `1.5px` | border width on every card, button and pill |
 | `--sh` | `4px 4px 0 0 var(--ink)` | the hard shadow — pure offset, no blur |
-| `--ink` | `#0C1F14` | borders and shadows (not the same job as `--text`) |
+| `--ink` | `#12122B` | borders and shadows (not the same job as `--text`) |
 
 Nothing has a border radius except the portrait. Buttons and filter pills *press* on hover — they translate toward their shadow and the shadow shrinks, rather than lifting. Cards do the opposite, lifting away from the shadow. Add `.card-hover` alongside `.card` to opt a card into the lift.
 
@@ -135,11 +147,11 @@ Two visualisations, both built from data already in [`src/data/profile.ts`](src/
 `--series-1/2/3` are a **fixed order, never cycled**, and were checked with the data-viz validator rather than by eye:
 
 ```
-green #166534 · cyan #0891B2 · pink #DB2777
-all-pairs, white surface — worst CVD ΔE 10.3 · normal-vision ΔE 20.5 · all ≥3:1
+iris #4F46E5 · orange #EA580C · teal #0D9488
+all-pairs, white surface — worst CVD ΔE 13.8 · normal-vision ΔE 27.1 · all ≥3:1
 ```
 
-Slot 1 is a deeper green than `--accent`. That is deliberate: lighter greens sit too close to cyan and pink under deuteranopia — `#16A34A` with the same partners drops to ΔE 6.1, a WARN. Green is a genuinely harder hue to build a categorical set around than violet was.
+Slot 1 is `--accent` itself, so the timeline's current-role bar matches the brand. That was not possible under the green palette, where slot 1 had to be a deeper shade than the UI accent to clear the colour-blindness gates. These are the widest margins any palette this site has used.
 
 If you add a fourth role or change a hue, re-run the validator and only ship a passing set. Colour follows the entity, never its rank — the swatch beside each company name is what ties bar to label, so identity is never carried by colour alone.
 
