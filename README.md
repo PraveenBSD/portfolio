@@ -87,24 +87,44 @@ src/
 
 ## Design
 
-A quiet technical document: white, monochrome, one column, hairline rules, no ornament.
-
-Every colour is a custom property in the `:root` block at the top of [`src/styles/global.css`](src/styles/global.css) — six greys and nothing else. There is no accent colour by design; emphasis comes from weight and spacing, and links are underlined rather than coloured.
+Light violet gradient ground, neon violet accents, card-based layout. Every colour is a custom property in the `:root` block at the top of [`src/styles/global.css`](src/styles/global.css).
 
 | Token | | |
 | --- | --- | --- |
-| `--text` | `#18181B` | body copy, headings |
-| `--text-2` | `#52525B` | secondary prose |
-| `--text-3` | `#A1A1AA` | metadata, labels |
-| `--border` | `#E7E7EA` | hairline rules |
+| `--accent` | `#7C3AED` | neon violet — marks, fills, gradients |
+| `--accent-ink` | `#6D28D9` | text-safe violet (7.1:1 on white) |
+| `--fuchsia` | `#D946EF` | gradient partner, never alone |
+| `--text` / `--text-2` / `--text-3` | | 17.8 / 8.2 / 5.1:1 on white |
 
-Type is two faces with a strict division of labour: **Inter** for anything you read, **JetBrains Mono** for anything you scan — dates, tags, labels, stack lists, code. Section headings are small uppercase mono labels rather than large type, which is what keeps the pages calm.
+All ink passes WCAG AA against both the card and the gradient ground. `--text-3` is deliberately darker than it looks like it needs to be — at 11–12px it is normal-size text, so it needs 4.5:1, not 3:1.
 
-Content is capped at `--measure` (680px), and prose at 64–66 characters.
+Type is two faces with a strict division of labour: **Inter** for anything you read, **JetBrains Mono** for anything you scan — dates, tags, labels, stack lists, code.
+
+## Charts
+
+Two visualisations, both built from data already in [`src/data/profile.ts`](src/data/profile.ts) — no invented numbers.
+
+**Stat tiles** ([`StatTile.astro`](src/components/StatTile.astro)) — a KPI row, not a bar chart, because each value is a single headline number. The meter fill and track are steps of the same violet ramp. The tiles mix polarity (availability is "of 100%", the rest are reductions), so every tile carries a `basis` label saying what its bar measures.
+
+**Career timeline** ([`CareerTimeline.astro`](src/components/CareerTimeline.astro)) — one duration bar per role on a shared year axis, in HTML rather than SVG so labels reflow and stay at real font sizes. Bar geometry and axis ticks are both computed from `start`/`end` in the data, so they cannot drift apart. Durations never round a partial year up (`1y 7m`, not `2y`).
+
+### Chart colours are validated — do not change them blind
+
+`--series-1/2/3` are a **fixed order, never cycled**, and were checked with the data-viz validator rather than by eye:
+
+```
+violet #7C3AED · cyan #0891B2 · pink #DB2777
+all-pairs, light surface — worst CVD ΔE 10.3 · normal-vision ΔE 24.5 · all ≥3:1
+```
+
+If you add a fourth role or change a hue, re-run the validator and only ship a passing set. Colour follows the entity, never its rank — the swatch beside each company name is what ties bar to label, so identity is never carried by colour alone.
+
+### Keeping the timeline current
+
+`TIMELINE_END` in [`src/data/profile.ts`](src/data/profile.ts) is the "present" marker (currently `2026.6`). Bump it as time passes, or the current role's bar stops growing.
 
 ## Notes
 
-- **Zero JavaScript.** Not "minimal" — the built pages contain no `<script>` tag at all. Nothing depends on hydration.
+- **JavaScript only where it earns its place.** The home page and post pages ship none. `/writing/` ships one small script for the category filters, which also syncs the choice to `?tag=` so a filtered view can be linked and reloaded.
 - **Fonts are self-hosted.** Astro downloads both families at build time — the page makes no request to `fonts.googleapis.com`.
-- **No animation** beyond 0.12s colour transitions on hover, and those are dropped under `prefers-reduced-motion`.
 - The prototype's slide-over modal became real post pages, so posts have their own URLs, work without JS, and can be crawled, shared, and syndicated.

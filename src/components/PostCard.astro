@@ -1,0 +1,29 @@
+---
+import type { CollectionEntry } from 'astro:content';
+
+interface Props {
+	post: CollectionEntry<'posts'>;
+	showDescription?: boolean;
+}
+
+const { post, showDescription = true } = Astro.props;
+const { title, description, pubDate, tag, readingTime, draft } = post.data;
+
+const stamp = pubDate.toLocaleDateString('en-GB', {
+	day: '2-digit',
+	month: 'short',
+	year: 'numeric',
+	timeZone: 'UTC',
+});
+---
+
+<a class="card post-card" href={`/writing/${post.id}/`} data-tag={tag}>
+	<div class="pc-top">
+		<span class="chip">{tag}</span>
+		<time datetime={pubDate.toISOString()}>{stamp}</time>
+		{readingTime && <span>· {readingTime}</span>}
+		{draft && <span class="chip draft">draft</span>}
+	</div>
+	<h3>{title}</h3>
+	{showDescription && <p>{description}</p>}
+</a>

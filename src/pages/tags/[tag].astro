@@ -1,6 +1,6 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import PostRow from '../../components/PostRow.astro';
+import PostCard from '../../components/PostCard.astro';
 import { getPosts, getTags, type Post } from '../../lib/posts';
 
 export async function getStaticPaths() {
@@ -23,25 +23,30 @@ const allTags = await getTags();
 	description={`Posts tagged ${tag} — platform engineering writing by Praveen B S D.`}
 >
 	<header class="page-head wrap">
-		<p class="label">Tag</p>
+		<p class="label">Category</p>
 		<h1>{tag}</h1>
-		<p>{posts.length} {posts.length === 1 ? 'post' : 'posts'}.</p>
-		<div class="tag-list">
-			{
-				allTags.map(({ tag: t, count }) =>
-					t === tag ? (
-						<span aria-current="page">{t} ({count})</span>
-					) : (
-						<a href={`/tags/${t}/`}>{t} ({count})</a>
-					),
-				)
-			}
-		</div>
+		<p>{posts.length} {posts.length === 1 ? 'post' : 'posts'} in this category.</p>
 	</header>
 
-	<div class="wrap" style="padding-top:30px">
-		<div class="posts">
-			{posts.map((post) => <PostRow post={post} showDescription />)}
+	<div class="wrap" style="padding-top:24px">
+		<div class="filters">
+			<a class="filter" href="/writing/">All</a>
+			{
+				allTags.map(({ tag: t, count }) => (
+					<a
+						class="filter"
+						href={`/tags/${t}/`}
+						aria-current={t === tag ? 'page' : undefined}
+					>
+						{t}
+						<span class="n">{count}</span>
+					</a>
+				))
+			}
+		</div>
+
+		<div class="post-list">
+			{posts.map((post) => <PostCard post={post} />)}
 		</div>
 	</div>
 </BaseLayout>

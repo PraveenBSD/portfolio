@@ -1,0 +1,84 @@
+---
+import { EXPERIENCE, TIMELINE_END } from '../data/profile';
+
+/**
+ * A duration bar per role on a shared year axis. Built in HTML rather than SVG
+ * so labels reflow and stay at real font sizes on small screens.
+ *
+ * Colours come from the validated categorical slots and are assigned by index
+ * in fixed order — never cycled, and never reassigned when the list changes.
+ */
+const SLOTS = ['var(--series-1)', 'var(--series-2)', 'var(--series-3)'];
+
+const spanStart = Math.min(...EXPERIENCE.map((r) => r.start));
+const spanEnd = TIMELINE_END;
+const total = spanEnd - spanStart;
+
+/** Year -> percentage across the track, so ticks line up with the bars. */
+const pos = (year: number) => ((year - spanStart) / total) * 100;
+
+const ticks: number[] = [];
+for (let y = Math.ceil(spanStart); y < Math.floor(spanEnd); y += 2) ticks.push(y);
+
+/** "3y", "1y 7m", "7m" — never rounds a partial year up to a whole one. */
+function humanise(years: number) {
+	const months = Math.round(years * 12);
+	const y = Math.floor(months / 12);
+	const m = months % 12;
+	if (y === 0) return `${m}m`;
+	if (m === 0) return `${y}y`;
+	return `${y}y ${m}m`;
+}
+
+const rows = EXPERIENCE.map((role, i) => {
+	const end = role.end ?? spanEnd;
+	return {
+		...role,
+		color: SLOTS[i % SLOTS.length],
+		left: pos(role.start),
+		width: ((end - role.start) / total) * 100,
+		duration: humanise(end - role.start),
+	};
+});
+
+const totalSpan = humanise(total);
+---
+
+<div class="card timeline">
+	<div class="tl-axis" aria-hidden="true">
+		{ticks.map((y) => <span class="tl-tick" style={`left:${pos(y)}%`}>{y}</span>)}
+		<span class="tl-tick tl-now" style="left:100%">now</span>
+	</div>
+
+	{
+		rows.map((row) => (
+			<div class="tl-row">
+				<div class="tl-head">
+					<span class="tl-swatch" style={`background:${row.color}`} aria-hidden="true" />
+					<span class="tl-co">{row.company}</span>
+					<span class="tl-when">
+						{row.when} · {row.duration}
+					</span>
+				</div>
+				<p class="tl-role">{row.role}</p>
+				<div class="tl-track">
+					{ticks.map((y) => (
+						<span class="tl-grid" style={`left:${pos(y)}%`} aria-hidden="true" />
+					))}
+					<div
+						class="tl-bar"
+						style={`left:${row.left}%;width:${row.width}%;background:${row.color}`}
+						title={`${row.company} · ${row.when} (${row.duration})`}
+					/>
+				</div>
+				<div class="tl-tags">
+					{row.highlights.map((h) => (
+						<span class="pill">{h}</span>
+					))}
+				</div>
+			</div>
+		))
+	}
+
+	<p class="tl-total">{totalSpan} across {rows.length} teams</p>
+</div>

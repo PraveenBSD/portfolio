@@ -1,13 +1,12 @@
 ---
 import { NAV_LINKS, SITE } from '../consts';
 
-// Mark the current section so the nav reflects where you are.
 const path = Astro.url.pathname;
 ---
 
 <header class="site-header">
 	<div class="wrap inner">
-		<a href="/" class="name">{SITE.author}</a>
+		<a href="/" class="name"><span class="mark" aria-hidden="true"></span>{SITE.author}</a>
 		<nav class="site-nav">
 			{
 				NAV_LINKS.map((link) => (

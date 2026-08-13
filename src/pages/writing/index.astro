@@ -1,6 +1,6 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import PostRow from '../../components/PostRow.astro';
+import PostCard from '../../components/PostCard.astro';
 import { getPosts, getTags } from '../../lib/posts';
 
 const posts = await getPosts();
@@ -15,17 +15,64 @@ const tags = await getTags();
 		<p class="label">Archive</p>
 		<h1>Writing</h1>
 		<p>
-			Everything, newest first. Short and specific, drawn from real work rather than trend cycles.
+			Everything, newest first — short and specific, drawn from real work.
 			<a href="/rss.xml">Subscribe via RSS</a>.
 		</p>
-		<div class="tag-list">
-			{tags.map(({ tag, count }) => <a href={`/tags/${tag}/`}>{tag} ({count})</a>)}
-		</div>
 	</header>
 
-	<div class="wrap" style="padding-top:30px">
-		<div class="posts">
-			{posts.map((post) => <PostRow post={post} showDescription />)}
+	<div class="wrap" style="padding-top:24px">
+		<div class="filters" role="group" aria-label="Filter posts by category">
+			<button class="filter" data-filter="all" aria-pressed="true">
+				All<span class="n">{posts.length}</span>
+			</button>
+			{
+				tags.map(({ tag, count }) => (
+					<button class="filter" data-filter={tag} aria-pressed="false">
+						{tag}
+						<span class="n">{count}</span>
+					</button>
+				))
+			}
 		</div>
+
+		<div class="post-list" id="post-list">
+			{posts.map((post) => <PostCard post={post} />)}
+		</div>
+
+		<p class="filter-empty" id="filter-empty">No posts in that category yet.</p>
 	</div>
 </BaseLayout>
+
+<script>
+	const buttons = document.querySelectorAll<HTMLButtonElement>('.filter');
+	const cards = document.querySelectorAll<HTMLElement>('#post-list [data-tag]');
+	const empty = document.getElementById('filter-empty');
+
+	function apply(active: string) {
+		let shown = 0;
+		cards.forEach((card) => {
+			const match = active === 'all' || card.dataset.tag === active;
+			card.style.display = match ? '' : 'none';
+			if (match) shown++;
+		});
+		empty?.classList.toggle('show', shown === 0);
+
+		buttons.forEach((b) =>
+			b.setAttribute('aria-pressed', String(b.dataset.filter === active)),
+		);
+
+		// Keep the choice in the URL so a filtered view can be linked and reloaded.
+		const url = new URL(window.location.href);
+		if (active === 'all') url.searchParams.delete('tag');
+		else url.searchParams.set('tag', active);
+		history.replaceState(null, '', url);
+	}
+
+	buttons.forEach((btn) => {
+		btn.addEventListener('click', () => apply(btn.dataset.filter ?? 'all'));
+	});
+
+	// Honour ?tag= on load.
+	const initial = new URL(window.location.href).searchParams.get('tag');
+	if (initial && [...buttons].some((b) => b.dataset.filter === initial)) apply(initial);
+</script>

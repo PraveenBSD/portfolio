@@ -21,22 +21,22 @@ const fmt = (d: Date) =>
 	type="article"
 	publishedAt={pubDate}
 >
-	<header class="post-header wrap">
+	<header class="post-head wrap narrow">
 		<div class="meta">
+			<a class="chip" href={`/tags/${tag}/`}>{tag}</a>
 			<time datetime={pubDate.toISOString()}>{fmt(pubDate)}</time>
-			<a href={`/tags/${tag}/`}>{tag}</a>
-			{readingTime && <span>{readingTime}</span>}
-			{updatedDate && <span>updated {fmt(updatedDate)}</span>}
+			{readingTime && <span>· {readingTime}</span>}
+			{updatedDate && <span>· updated {fmt(updatedDate)}</span>}
 		</div>
 		<h1>{title}</h1>
 	</header>
 
-	<div class="wrap">
+	<div class="wrap narrow">
 		<article class="article">
 			<slot />
 		</article>
 
-		<nav class="post-footer">
+		<nav class="post-foot">
 			{prev ? <a href={`/writing/${prev.id}/`}>← {prev.data.title}</a> : <span />}
 			{next && <a href={`/writing/${next.id}/`} style="text-align:right">{next.data.title} →</a>}
 		</nav>

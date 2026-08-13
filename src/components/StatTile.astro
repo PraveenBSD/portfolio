@@ -1,0 +1,29 @@
+---
+interface Props {
+	label: string;
+	value: string;
+	unit: string;
+	/** Magnitude 0–100 driving the meter fill. */
+	pct: number;
+	/** What the meter is measuring — the tiles mix "of 100%" with "reduction". */
+	basis: string;
+	note: string;
+}
+
+const { label, value, unit, pct, basis, note } = Astro.props;
+const fill = Math.max(0, Math.min(100, pct));
+---
+
+<div class="card tile">
+	<p class="t-label">{label}</p>
+	<div class="t-value">{value}<span class="u">{unit}</span></div>
+	<div
+		class="meter"
+		role="img"
+		aria-label={`${label}: ${value}${unit} — ${basis}`}
+	>
+		<span style={`width:${fill}%`}></span>
+	</div>
+	<p class="t-basis">{basis}</p>
+	<p class="t-note">{note}</p>
+</div>
