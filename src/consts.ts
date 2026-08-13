@@ -13,7 +13,7 @@ export const SITE = {
 	title: 'Praveen B S D | Platform Engineering',
 	shortTitle: 'Praveen B S D',
 	description:
-		'Praveen B S D works on internal developer platforms and the infrastructure behind them. Writing on platform engineering, GitOps, Kubernetes, SRE, and cloud cost.',
+		'Praveen B S D builds internal developer platforms, self-service infrastructure, and the reliability, security, and cost foundations product teams ship on. Writing on platform engineering, GitOps, SRE, and FinOps.',
 	author: 'Praveen B S D',
 	locale: 'en',
 } as const;

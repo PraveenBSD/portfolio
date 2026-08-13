@@ -192,6 +192,15 @@ h1,h2,h3,.display{font-family:var(--font-display);letter-spacing:-0.03em;}
   background:var(--iris-200);
 }
 
+.portrait-badge{
+  position:absolute;left:50%;bottom:-12px;transform:translateX(-50%);
+  font-family:var(--font-mono);font-size:10.5px;font-weight:500;
+  text-transform:uppercase;letter-spacing:0.08em;white-space:nowrap;
+  background:var(--accent);color:var(--on-accent);
+  border:var(--bw) solid var(--ink);box-shadow:2px 2px 0 0 var(--ink);
+  padding:4px 10px;
+}
+
 /* ---------- Buttons: squared, bordered, hard shadow, press on hover ---------- */
 .btn{
   display:inline-flex;align-items:center;gap:8px;
