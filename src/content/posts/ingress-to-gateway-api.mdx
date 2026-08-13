@@ -1,12 +1,133 @@
 ---
-title: 'Ingress to Gateway API: what changed and why we moved'
-description: 'Gateway API is not just a new spelling of Ingress. Where it earns its keep — and the migration path that avoided downtime.'
+title: 'Switching from Ingress to Gateway API in Kubernetes'
+description: 'Gateway API is not a new spelling of Ingress. What actually changed, why the role split matters more than the syntax, and a migration path that does not need a cutover weekend.'
 pubDate: 2026-08-07
 tag: kubernetes
 hash: 3d9a5f0
-draft: true
+readingTime: 8 min read
 ---
 
-Gateway API is not just a new spelling of Ingress. Where it earns its keep — and the migration path that avoided downtime.
+Ingress has one job and two problems. The job — get traffic from outside the cluster to a Service — it does fine. The problems are that the spec ran out of vocabulary about five years ago, and that it puts platform concerns and application concerns in the same object.
 
-{/* TODO: write this post, then flip `draft: true` to `false` (or delete the line) to publish it. */}
+Gateway API fixes both. It is worth understanding *why* before you start rewriting YAML, because the syntax change is the least interesting part of the migration.
+
+## The annotation problem
+
+The Ingress spec covers hosts, paths, and TLS. It has no vocabulary for retries, timeouts, header manipulation, traffic splitting, or rate limiting — all things people obviously want. So every controller grew its own annotations:
+
+```yaml
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/canary: "true"
+    nginx.ingress.kubernetes.io/canary-weight: "10"
+```
+
+None of that is portable. None of it is validated — a typo in an annotation key is silently ignored, which is a genuinely bad failure mode for something sitting in your request path. And none of it is discoverable: there is no `kubectl explain` for a string map.
+
+Gateway API makes these typed fields on real resources. A weighted split is a field with a schema, so the API server rejects it if you get it wrong:
+
+```yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: checkout
+spec:
+  parentRefs:
+    - name: prod-gateway
+      namespace: infra
+  hostnames: ["checkout.example.com"]
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api
+      backendRefs:
+        - name: checkout-v1
+          port: 8080
+          weight: 90
+        - name: checkout-v2
+          port: 8080
+          weight: 10
+```
+
+## The role split is the real change
+
+This is the part that matters for a platform team, and it is easy to miss if you read Gateway API as "Ingress with better fields."
+
+Gateway API splits one resource into three, along ownership lines:
+
+| Resource | Owned by | Answers |
+| --- | --- | --- |
+| `GatewayClass` | infrastructure provider | which implementation, what defaults |
+| `Gateway` | cluster operator / platform | listeners, ports, TLS certs, which namespaces may attach |
+| `HTTPRoute` | application team | hostnames, paths, backends, filters |
+
+Under Ingress, giving a team the ability to set a hostname meant giving them an Ingress object — which also let them set TLS config, controller annotations, and anything else their controller happened to honour. The blast radius of a bad Ingress was the whole controller.
+
+Under Gateway API, the platform owns the Gateway and declares who may attach to it:
+
+```yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: prod-gateway
+  namespace: infra
+spec:
+  gatewayClassName: envoy
+  listeners:
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: "*.example.com"
+      tls:
+        certificateRefs:
+          - name: wildcard-example-com
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              gateway-access: "true"
+```
+
+An application team now writes an HTTPRoute in their own namespace and attaches it. They cannot change the certificate, the port, or the listener. That is a real permission boundary rather than a convention enforced by review.
+
+Cross-namespace backend references are similarly explicit — a route in `team-a` cannot send traffic to a Service in `team-b` unless `team-b` creates a `ReferenceGrant` permitting it. Consent is expressed by the namespace receiving the traffic, which is the correct direction.
+
+## What to know before you start
+
+**Not every field has a home.** Gateway API core covers routing well. Things like rate limiting, external auth, and CORS are still implementation-specific — they live in policy CRDs attached to a Gateway or Route, and those CRDs differ between implementations. You are trading one portability gap for a smaller, better-shaped one, not eliminating it.
+
+**Conformance varies.** Implementations declare which conformance profiles they pass. Check that list against the features you actually use before committing, particularly for anything beyond core HTTP routing.
+
+**`kubectl` support needs a plugin.** Install `kubectl-gateway` for a readable view of which routes attached to which gateways and why one did not.
+
+## The migration path
+
+You do not need a cutover. Ingress and Gateway API can run side by side, on separate load balancers, for as long as you like.
+
+1. **Stand up a Gateway alongside existing Ingress.** New listener, new external address, nothing pointed at it yet. Both controllers run; neither knows about the other.
+
+2. **Generate a first draft with `ingress2gateway`.** The upstream tool converts existing Ingress objects, including several controllers' annotations, into Gateway API resources:
+
+   ```sh
+   ingress2gateway print --providers=ingress-nginx --namespace=team-a
+   ```
+
+   Treat the output as a starting point, not an answer. It handles the mechanical parts and leaves the annotations that have no equivalent — which are exactly the ones worth thinking about.
+
+3. **Move one low-traffic service.** Point its DNS at the new gateway address. Watch error rates and latency for a few days. This is where you find out that a header your app depended on was being set by an annotation nobody remembered.
+
+4. **Shift the rest per-route, using DNS.** Each service moves independently and rolls back independently by changing one DNS record. There is no big-bang step and no shared blast radius.
+
+5. **Delete the Ingress objects last.** Only after the corresponding route has been serving production traffic long enough that you would have noticed a problem.
+
+The slow path matters more than it looks. Most of the risk in this migration is not in the routing rules you can see — it is in the accumulated annotation behaviour nobody documented, which only shows up under real traffic.
+
+## Is it worth doing?
+
+If you run a single Ingress controller, have few annotations, and no multi-team tenancy pressure, Ingress will keep working and there is no urgency.
+
+The case gets strong when you have several teams sharing ingress infrastructure, when you have accumulated annotation sprawl that nobody can safely refactor, or when you want traffic splitting without paying for a full service mesh. That is the shape where the role split stops being an abstraction and starts removing tickets from your queue.

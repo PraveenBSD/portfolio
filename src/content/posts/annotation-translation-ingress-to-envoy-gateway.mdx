@@ -1,0 +1,200 @@
+---
+title: 'Annotation translation: NGINX Ingress to Envoy Gateway'
+description: 'A working map from ingress-nginx annotations to Gateway API resources and Envoy Gateway policies — including the ones that have no equivalent and need a decision instead.'
+pubDate: 2026-08-11
+tag: kubernetes
+hash: 5c8b1a4
+readingTime: 10 min read
+---
+
+The hard part of leaving ingress-nginx is not the routing rules. It is the annotations — dozens of them, added over years, each solving a real problem for someone who has since left.
+
+This is the translation table I wish I had started with. It covers ingress-nginx, since that is what most clusters run, mapping to Gateway API core where possible and Envoy Gateway policies where not.
+
+## Start with the generated draft
+
+Before translating by hand, run the upstream converter:
+
+```sh
+ingress2gateway print --providers=ingress-nginx --namespace=team-a > draft.yaml
+```
+
+It handles paths, hosts, TLS, and a handful of annotations. Everything it silently drops is what the rest of this post is about — so diff its output against your Ingress annotations and work the gap.
+
+## Routing and rewrites
+
+**`rewrite-target`** becomes a `URLRewrite` filter. The capture-group syntax goes away, which is a mercy:
+
+```yaml
+# nginx.ingress.kubernetes.io/rewrite-target: /$2
+# path: /api(/|$)(.*)
+rules:
+  - matches:
+      - path:
+          type: PathPrefix
+          value: /api
+    filters:
+      - type: URLRewrite
+        urlRewrite:
+          path:
+            type: ReplacePrefixMatch
+            replacePrefixMatch: /
+    backendRefs:
+      - name: api
+        port: 8080
+```
+
+`ReplacePrefixMatch` replaces exactly the matched prefix. No regex, no `$2`, no off-by-one on the leading slash.
+
+**`app-root`** and **`permanent-redirect`** become a `RequestRedirect` filter:
+
+```yaml
+filters:
+  - type: RequestRedirect
+    requestRedirect:
+      path:
+        type: ReplaceFullPath
+        replaceFullPath: /app
+      statusCode: 301
+```
+
+**`use-regex`** with a regex path has no core equivalent — Gateway API supports `Exact`, `PathPrefix`, and implementation-specific `RegularExpression`. Envoy Gateway supports the last one, but check whether you actually needed regex or just a prefix.
+
+**`ssl-redirect`** is usually not a route concern at all. Put an HTTP listener on the Gateway whose only route issues a redirect, and keep your real routes on the HTTPS listener.
+
+**Canary annotations** (`canary`, `canary-weight`) become weighted `backendRefs` — see the previous post. This is the clearest win in the whole migration: one route object instead of two Ingress objects that had to be kept in sync.
+
+## Timeouts, retries, buffers
+
+These move to `BackendTrafficPolicy` and `ClientTrafficPolicy`.
+
+| Annotation | Where it goes |
+| --- | --- |
+| `proxy-read-timeout`, `proxy-send-timeout` | `BackendTrafficPolicy.timeout.http.requestTimeout` |
+| `proxy-connect-timeout` | `BackendTrafficPolicy.timeout.tcp.connectTimeout` |
+| `proxy-next-upstream*` | `BackendTrafficPolicy.retry` |
+| `proxy-body-size` | `ClientTrafficPolicy` connection limits |
+| `load-balance` | `BackendTrafficPolicy.loadBalancer` |
+| `upstream-hash-by` | `BackendTrafficPolicy.loadBalancer.type: ConsistentHash` |
+
+```yaml
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: uploads
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: uploads
+  timeout:
+    http:
+      requestTimeout: 300s
+  loadBalancer:
+    type: ConsistentHash
+    consistentHash:
+      type: SourceIP
+```
+
+One behavioural difference worth catching: ingress-nginx `proxy-next-upstream` retries on connection errors *by default*. Envoy retries only what you configure. If you relied on that default, you must now write it down — which is better, but it is a silent change if you do not.
+
+## Security: CORS, auth, IP restrictions
+
+All `SecurityPolicy`.
+
+**CORS** (`enable-cors`, `cors-allow-origin`, `cors-allow-methods`):
+
+```yaml
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: api-cors
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: api
+  cors:
+    allowOrigins:
+      - "https://app.example.com"
+    allowMethods: ["GET", "POST", "OPTIONS"]
+    allowHeaders: ["authorization", "content-type"]
+    maxAge: 1h
+```
+
+Note ingress-nginx defaults `cors-allow-origin` to `*`. If your annotation only enabled CORS without specifying origins, you were allowing every origin. Do not port that faithfully — fix it.
+
+**External auth** (`auth-url`, `auth-signin`, `auth-response-headers`) becomes `extAuth`:
+
+```yaml
+  extAuth:
+    http:
+      backendRefs:
+        - name: auth-service
+          port: 8080
+      path: /verify
+      headersToBackend: ["x-user-id", "x-user-email"]
+```
+
+`auth-signin` — the redirect-to-login behaviour — has no direct equivalent. If you were using it for browser flows, the right answer is usually Envoy Gateway's native `oidc` block rather than an external auth service.
+
+**IP allow lists** (`whitelist-source-range`) become `authorization`:
+
+```yaml
+  authorization:
+    defaultAction: Deny
+    rules:
+      - action: Allow
+        principal:
+          clientCIDRs: ["10.0.0.0/8", "203.0.113.0/24"]
+```
+
+Check how client IP is being determined. Behind a cloud load balancer you need `ClientTrafficPolicy.clientIPDetection` with the right `numTrustedHops` or `xForwardedFor` config, or you will be matching the load balancer's IP and wondering why the allow list lets everyone in.
+
+## Rate limiting — read this one carefully
+
+`limit-rps` / `limit-connections` map to `BackendTrafficPolicy.rateLimit`, but with a real semantic difference.
+
+ingress-nginx rate limits are per-pod, backed by a shared memory zone per controller replica. Envoy Gateway's `type: Local` is also per-pod. So far so equivalent.
+
+But if you want a genuine cluster-wide limit, you need `type: Global`, which requires the rate limit service and Redis:
+
+```yaml
+  rateLimit:
+    type: Global
+    global:
+      rules:
+        - clientSelectors:
+            - headers:
+                - name: x-api-key
+                  type: Distinct
+          limit:
+            requests: 1000
+            unit: Hour
+```
+
+That `Distinct` selector gives every API key its own bucket — something ingress-nginx could not express at all. It is worth the Redis dependency if you are rate limiting per tenant.
+
+## The ones with no equivalent
+
+Some annotations do not translate because they are NGINX implementation details:
+
+- **`configuration-snippet` / `server-snippet`** — raw NGINX config. There is no port. Work out what each snippet does and find the policy equivalent, or use `EnvoyPatchPolicy` as a last resort. These are also the annotations most likely to contain something load-bearing that nobody documented.
+- **`backend-protocol: GRPC`** — use a `GRPCRoute` instead of an HTTPRoute.
+- **`backend-protocol: HTTPS`** — upstream TLS is configured on a `Backend` resource or via `BackendTLSPolicy`.
+- **`session-cookie-*`** — cookie-based session affinity; use consistent hashing on a header or cookie via `BackendTrafficPolicy`.
+- **`enable-modsecurity`** — no WAF built in. Either a Wasm extension via `EnvoyExtensionPolicy`, or a WAF in front of the gateway.
+
+## Do this before you cut over
+
+Dump every annotation actually in use, so you are working from evidence rather than memory:
+
+```sh
+kubectl get ingress -A -o json \
+  | jq -r '.items[].metadata.annotations // {} | keys[]' \
+  | grep '^nginx.ingress' | sort | uniq -c | sort -rn
+```
+
+The counts tell you what to prioritise. In most clusters the long tail is a handful of annotations on one service each, and roughly a third of them turn out to be doing nothing — copied from a template, or protecting against a problem that no longer exists.
+
+Delete those rather than translating them. A migration is a rare licence to remove config nobody can justify.

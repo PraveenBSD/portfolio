@@ -1,0 +1,235 @@
+---
+title: 'Grafana + Prometheus: Kubernetes monitoring that earns its keep'
+description: 'kube-prometheus-stack, the Operator CRDs, and how to build alerts people act on instead of a wall of dashboards nobody opens.'
+pubDate: 2026-07-15
+tag: observability
+hash: d38f5b9
+readingTime: 10 min read
+---
+
+Installing Prometheus on Kubernetes is a Helm command. Getting monitoring that changes what you do at 3am is a different exercise, and most of it is about deciding what *not* to alert on.
+
+## Install the stack, not the components
+
+```sh
+helm install kube-prometheus-stack \
+  prometheus-community/kube-prometheus-stack \
+  --namespace monitoring --create-namespace \
+  --values values.yaml
+```
+
+That chart gives you Prometheus, the Prometheus Operator, Alertmanager, Grafana, node-exporter, kube-state-metrics, and a set of default dashboards and alerting rules that are genuinely good. Do not assemble these by hand.
+
+Two things to set from the start:
+
+```yaml
+prometheus:
+  prometheusSpec:
+    retention: 15d
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp3
+          resources:
+            requests:
+              storage: 200Gi
+    # Watch ServiceMonitors in every namespace, not only those
+    # carrying the chart's release label.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+```
+
+That second setting catches almost everyone. By default the Operator only picks up ServiceMonitors labelled for this release, so a team creates one, nothing happens, and they conclude monitoring is broken.
+
+## Know which component gives you what
+
+Four sources, and confusing them wastes a lot of time:
+
+| Source | Provides |
+| --- | --- |
+| **kubelet / cAdvisor** | actual container CPU, memory, network usage |
+| **kube-state-metrics** | object state from the API — replicas desired vs ready, pod phase, deployment conditions |
+| **node-exporter** | node-level OS metrics — disk, filesystem, load |
+| **your app** | request rates, latency, queue depth, business metrics |
+
+The distinction that matters: `container_memory_working_set_bytes` (cAdvisor) is memory a pod is *using*. `kube_pod_container_resource_limits` (kube-state-metrics) is what it is *allowed*. You need both to answer "is this pod about to be OOM killed", which is the actual question.
+
+## Scrape targets are resources
+
+The Operator turns scrape config into Kubernetes objects, so application teams add monitoring without touching Prometheus config:
+
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: checkout
+  namespace: team-checkout
+  labels:
+    team: checkout
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: checkout
+  endpoints:
+    - port: metrics
+      interval: 30s
+      path: /metrics
+```
+
+The `port` is the Service's *named* port, not a number — a frequent source of silently-not-scraping. Check `/targets` in the Prometheus UI after adding one; it will tell you exactly why a target is down.
+
+## Alert on symptoms, not causes
+
+This is the whole discipline, and it is where most setups go wrong.
+
+High CPU is not a problem. High CPU while serving traffic within its latency objective is a well-utilised service. Alerting on CPU produces pages that resolve themselves and teaches people to ignore alerts.
+
+Alert on what users experience:
+
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: checkout-slos
+  namespace: team-checkout
+spec:
+  groups:
+    - name: checkout
+      rules:
+        - alert: CheckoutErrorRateHigh
+          expr: |
+            sum(rate(http_requests_total{job="checkout",code=~"5.."}[5m]))
+              /
+            sum(rate(http_requests_total{job="checkout"}[5m]))
+              > 0.01
+          for: 10m
+          labels:
+            severity: critical
+            team: checkout
+          annotations:
+            summary: "Checkout 5xx rate above 1% for 10 minutes"
+            runbook_url: "https://runbooks.example.com/checkout-errors"
+
+        - alert: CheckoutLatencyHigh
+          expr: |
+            histogram_quantile(0.99,
+              sum by (le) (rate(http_request_duration_seconds_bucket{job="checkout"}[5m]))
+            ) > 1.5
+          for: 15m
+          labels:
+            severity: warning
+            team: checkout
+```
+
+Three things in there are non-negotiable. `for:` prevents a single scrape blip from paging. `runbook_url` means whoever is woken has somewhere to start. And `team:` is what lets Alertmanager route to the right people rather than a channel everyone mutes.
+
+The RED method is a good default for request-driven services: **R**ate, **E**rrors, **D**uration. USE — **U**tilisation, **S**aturation, **E**rrors — fits infrastructure. Between them they cover most of what is worth alerting on.
+
+## The queries you will actually use
+
+Pods being OOM killed:
+
+```promql
+increase(kube_pod_container_status_terminated_reason{reason="OOMKilled"}[1h]) > 0
+```
+
+Pods in crash loops:
+
+```promql
+rate(kube_pod_container_status_restarts_total[15m]) * 900 > 3
+```
+
+Memory close to its limit — the leading indicator for the first query:
+
+```promql
+container_memory_working_set_bytes{container!=""}
+  / on(namespace,pod,container)
+    kube_pod_container_resource_limits{resource="memory"}
+  > 0.9
+```
+
+Deployments not fully rolled out:
+
+```promql
+kube_deployment_status_replicas_available
+  / kube_deployment_spec_replicas < 1
+```
+
+CPU throttling, which is the usual cause of unexplained latency:
+
+```promql
+rate(container_cpu_cfs_throttled_periods_total[5m])
+  / rate(container_cpu_cfs_periods_total[5m]) > 0.25
+```
+
+That last one is worth an alert on its own. A service with a CPU limit gets throttled at the limit even when the node is idle, and the symptom — periodic latency spikes with normal-looking CPU graphs — is genuinely confusing if you are not looking for it.
+
+## Recording rules for expensive queries
+
+A dashboard panel running a heavy aggregation across thousands of series will be slow every time it loads. Precompute it:
+
+```yaml
+    - name: checkout-recording
+      interval: 30s
+      rules:
+        - record: job:http_requests:rate5m
+          expr: sum by (job) (rate(http_requests_total[5m]))
+        - record: job:http_errors:ratio5m
+          expr: |
+            sum by (job) (rate(http_requests_total{code=~"5.."}[5m]))
+              / sum by (job) (rate(http_requests_total[5m]))
+```
+
+The `level:metric:operation` naming convention is worth following — it tells you the aggregation level at a glance.
+
+## Dashboards as code
+
+Dashboards edited in the UI are lost when the pod restarts, and there is no review trail. Provision them from ConfigMaps:
+
+```yaml
+grafana:
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      searchNamespace: ALL
+```
+
+Any ConfigMap labelled `grafana_dashboard: "1"` gets picked up. Keep the JSON in git next to the service it monitors.
+
+Resist building many dashboards. A small number that people know by heart beats forty that nobody can find. A reasonable set: one cluster overview, one per-namespace resource view, and one per service following RED.
+
+## Cardinality will get you
+
+Prometheus memory scales with active series. Series count is the product of every label's distinct values — so one label with unbounded values will take the whole thing down.
+
+Never label a metric with a user ID, request ID, email, full URL path, or trace ID. `path="/orders/12345"` creates a series per order.
+
+Find your worst offenders:
+
+```promql
+topk(20, count by (__name__)({__name__=~".+"}))
+```
+
+Drop what you do not need at scrape time:
+
+```yaml
+  metricRelabelings:
+    - sourceLabels: [__name__]
+      regex: 'go_gc_duration_seconds.*'
+      action: drop
+```
+
+High-cardinality context belongs on traces, not metrics — which is one of the better arguments for having tracing set up alongside.
+
+## Beyond one Prometheus
+
+A single Prometheus is fine to a surprising scale. When you outgrow it, the ordering is usually: `remote_write` to long-term storage first, then federation or a scale-out backend.
+
+Thanos and Mimir both solve long retention and a global query view across clusters. Either is a real operational commitment — do not adopt one until a single Prometheus with 15 days of retention is demonstrably not enough.
+
+## What good looks like
+
+You have a handful of alerts. Each one has a runbook, routes to a specific team, and has fired for a real reason in the last quarter. Nobody has muted the alerts channel.
+
+If your alerts fire constantly and people have learned to ignore them, deleting most of them is a genuine improvement in reliability — an alert nobody reads is not monitoring, it is noise with a pager attached.

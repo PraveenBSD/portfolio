@@ -1,0 +1,181 @@
+---
+title: 'Trivy: getting started with standard policies'
+description: 'One scanner for images, filesystems, IaC, secrets and live clusters. How to configure it so the results are actionable instead of a wall of unfixable CVEs.'
+pubDate: 2026-07-25
+tag: devsecops
+hash: 4f7ab08
+readingTime: 8 min read
+---
+
+Trivy started as a container image vulnerability scanner and grew into most of a security toolchain: images, filesystems, git repositories, IaC misconfiguration, secrets, licences, SBOM generation, and live Kubernetes clusters. One binary, no server.
+
+The breadth is the selling point and also the trap. Turn everything on and you get a report nobody reads.
+
+## The scan targets
+
+```sh
+trivy image ghcr.io/org/api:1.4.2   # container image
+trivy fs .                           # local filesystem
+trivy repo https://github.com/org/x  # remote repository
+trivy config ./terraform             # IaC misconfiguration
+trivy k8s --report summary           # live cluster
+trivy sbom ./sbom.json               # an existing SBOM
+```
+
+`trivy image` is where most people start. `trivy k8s` is the one that tells you what is actually running, which is usually a different and more alarming list.
+
+## Make the output actionable
+
+A default image scan of any mainstream base image returns hundreds of CVEs. Most cannot be fixed by you. Two flags change everything:
+
+```sh
+trivy image \
+  --severity HIGH,CRITICAL \
+  --ignore-unfixed \
+  --exit-code 1 \
+  ghcr.io/org/api:1.4.2
+```
+
+`--ignore-unfixed` drops vulnerabilities with no available fix. This is the single most important flag in the tool. A CVE with no upstream patch is not something a developer can act on in a pull request — reporting it in a blocking gate teaches people to bypass the gate.
+
+Track unfixed CVEs separately, on a schedule, as a report to the platform team. That is a base-image decision, not a per-PR decision.
+
+`--exit-code 1` is what makes CI fail. Without it Trivy prints findings and exits zero, which is useful for reporting jobs and useless for gates.
+
+## Ignore with an expiry date
+
+`.trivyignore` suppresses specific findings:
+
+```
+# .trivyignore
+# Only reachable via the admin CLI, which is not shipped in the runtime image.
+# Re-evaluate when we move to the 3.12 base. Expires 2026-10-01.
+CVE-2026-12345
+```
+
+Better, use the YAML form which supports real expiry:
+
+```yaml
+# .trivyignore.yaml
+vulnerabilities:
+  - id: CVE-2026-12345
+    statement: Not reachable - admin CLI excluded from runtime image
+    expiredAt: 2026-10-01
+misconfigurations:
+  - id: AVD-KSV-0012
+    statement: Init container needs root to chown the data volume
+```
+
+An expiry date means suppressions come back for review instead of accumulating forever. Any ignore file without expiry dates becomes permanent within a year.
+
+## Scan the image you built, in the pipeline that built it
+
+```yaml
+- name: Build
+  run: docker build -t ${{ github.sha }} .
+
+- name: Scan
+  uses: aquasecurity/trivy-action@0.28.0
+  with:
+    image-ref: ${{ github.sha }}
+    severity: HIGH,CRITICAL
+    ignore-unfixed: true
+    exit-code: '1'
+    format: sarif
+    output: trivy-results.sarif
+
+- uses: github/codeql-action/upload-sarif@v3
+  if: always()
+  with:
+    sarif_file: trivy-results.sarif
+```
+
+Scan the local image before it is pushed. Scanning after the push means a vulnerable image already exists in a registry someone can pull.
+
+Cache the vulnerability database in CI or every job downloads several hundred megabytes:
+
+```yaml
+- uses: actions/cache@v4
+  with:
+    path: ~/.cache/trivy
+    key: trivy-db-${{ github.run_id }}
+    restore-keys: trivy-db-
+```
+
+## Misconfiguration scanning
+
+`trivy config` covers the same ground as Checkov for IaC, plus Dockerfiles and Kubernetes manifests:
+
+```sh
+trivy config --severity HIGH,CRITICAL ./deploy
+```
+
+The Kubernetes checks (`AVD-KSV-*`) are the useful ones if you are not already running an admission controller — privileged containers, missing resource limits, writable root filesystems, host namespace access. There is real overlap with a Kyverno baseline policy set, which is fine: Trivy catches it at build time, Kyverno catches it at admission. Different points in the lifecycle, and manifests are not the only path to a running pod.
+
+## Secret scanning is on by default
+
+Trivy scans for secrets during `fs` and `image` scans without being asked. This catches the specific and common failure of a `.env` file or an AWS key baked into an image layer:
+
+```sh
+trivy image --scanners secret ghcr.io/org/api:1.4.2
+```
+
+Worth knowing: it finds secrets in *any* layer, including ones deleted by a later `RUN rm`. Deleting a file in a subsequent layer does not remove it from the image. This scan is how people discover that.
+
+## In-cluster with the operator
+
+The CLI tells you about images you scan. The Trivy Operator tells you about everything running:
+
+```sh
+helm install trivy-operator aqua/trivy-operator \
+  --namespace trivy-system --create-namespace \
+  --set trivy.ignoreUnfixed=true
+```
+
+It watches workloads and writes findings as custom resources:
+
+```sh
+kubectl get vulnerabilityreports -A
+kubectl get configauditreports -A
+kubectl get clustercompliancereports
+```
+
+Findings become Kubernetes objects, which means Prometheus can scrape them and you can alert on "critical vulnerability count in production increased" rather than reading reports manually.
+
+This closes a real gap. CI scanning only covers images your CI built. The operator covers the third-party Helm chart someone installed eight months ago, which is statistically where your oldest CVEs live.
+
+## SBOM
+
+```sh
+trivy image --format cyclonedx --output sbom.json ghcr.io/org/api:1.4.2
+trivy sbom sbom.json
+```
+
+Generate the SBOM at build time and store it as a release artifact. When the next Log4Shell-class vulnerability appears, the question "which of our services ship this library" is answered by grepping stored SBOMs in minutes rather than rebuilding and rescanning everything.
+
+That is the actual value of SBOMs, and it only works if you were generating them before you needed them.
+
+## A configuration that holds up
+
+```yaml
+# trivy.yaml
+severity:
+  - HIGH
+  - CRITICAL
+vulnerability:
+  ignore-unfixed: true
+scan:
+  scanners:
+    - vuln
+    - secret
+    - misconfig
+timeout: 10m
+```
+
+```sh
+trivy image --config trivy.yaml ghcr.io/org/api:1.4.2
+```
+
+The judgement calls that matter, in order: `--ignore-unfixed` in blocking gates, HIGH and CRITICAL only for failing builds, expiry dates on every suppression, and the operator running so you know about what is deployed rather than only what you just built.
+
+Everything else is detail.

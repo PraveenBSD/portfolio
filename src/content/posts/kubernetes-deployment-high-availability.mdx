@@ -1,0 +1,218 @@
+---
+title: 'High availability for Kubernetes deployments: the practices that matter'
+description: 'PDBs, topology spread, HPA, probes and graceful shutdown — which of them actually prevent downtime, and the misconfigurations that quietly cancel each other out.'
+pubDate: 2026-07-11
+tag: kubernetes
+hash: 2a6c8e5
+readingTime: 11 min read
+---
+
+Most Kubernetes availability incidents are not caused by missing features. They are caused by three features that were each configured sensibly in isolation and interact badly.
+
+Here is what each one does, in the order it matters, and where the interactions bite.
+
+## Replicas across failure domains
+
+Two replicas on the same node is one failure domain wearing a disguise.
+
+`topologySpreadConstraints` is the modern answer, and it is better than `podAntiAffinity` for almost every case — it lets you express *how much* imbalance is acceptable rather than an absolute rule:
+
+```yaml
+spec:
+  replicas: 3
+  template:
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: checkout
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: checkout
+```
+
+Two constraints doing different jobs. Zone spread is `DoNotSchedule` — a hard requirement, because losing a zone should never take the service down. Host spread is `ScheduleAnyway` — a preference, because refusing to schedule during a node shortage is worse than two pods sharing a node.
+
+Getting this backwards is a classic outage: `DoNotSchedule` on hostname with replicas greater than nodes means pods sit Pending forever, and the autoscaler may not fix it because the pods are unschedulable for a reason adding nodes does not obviously solve.
+
+## PodDisruptionBudgets protect against *you*
+
+A PDB constrains **voluntary** disruptions — node drains, cluster upgrades, autoscaler scale-down. It does nothing for a node catching fire.
+
+That is worth stating plainly because PDBs are often described as an availability feature generally. They are specifically a "do not let maintenance take my service down" feature.
+
+```yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: checkout
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: checkout
+```
+
+Prefer `minAvailable` as an absolute number over a percentage — percentages round in ways that surprise you at small replica counts.
+
+**The trap:** `minAvailable` equal to your replica count blocks node drains forever. A cluster upgrade hangs, someone eventually deletes the PDB to make progress, and the protection is gone. With 3 replicas, `minAvailable: 2` allows one pod to move at a time. `minAvailable: 3` means no pod can ever be evicted voluntarily.
+
+`maxUnavailable: 1` is often the better expression — it stays correct when the replica count changes, which `minAvailable` does not.
+
+Find the broken ones:
+
+```promql
+kube_poddisruptionbudget_status_expected_pods
+  - kube_poddisruptionbudget_status_desired_healthy <= 0
+```
+
+## Probes: three of them, three different jobs
+
+Getting probes wrong causes more self-inflicted downtime than any other setting here.
+
+```yaml
+        startupProbe:
+          httpGet: { path: /healthz, port: 8080 }
+          failureThreshold: 30
+          periodSeconds: 10
+
+        readinessProbe:
+          httpGet: { path: /ready, port: 8080 }
+          periodSeconds: 5
+          failureThreshold: 3
+
+        livenessProbe:
+          httpGet: { path: /healthz, port: 8080 }
+          periodSeconds: 10
+          failureThreshold: 3
+```
+
+**Readiness** controls whether the pod receives traffic. This is the one that matters most and the one to get right first.
+
+**Liveness** restarts the container when it fails. Use it only for genuinely unrecoverable states — a deadlock, a wedged event loop. If your liveness probe checks a database connection, a database blip becomes a cluster-wide restart storm that turns a degraded service into a completely unavailable one. **Liveness must never depend on a downstream dependency.**
+
+**Startup** exists so slow-starting applications do not need generous liveness thresholds forever. Without it you either set `initialDelaySeconds` high — delaying detection of real failures for the life of the pod — or the container gets killed during a slow start and never comes up.
+
+Readiness and liveness should hit *different* endpoints. `/ready` may check dependencies; `/healthz` must only report whether the process itself is functional.
+
+## Graceful shutdown is where the 502s live
+
+This is the most commonly missed item on the list, and it produces errors during every single deploy.
+
+When a pod terminates, two things happen **in parallel**: the kubelet sends SIGTERM, and the endpoints controller removes the pod from Service endpoints. That removal has to propagate to every kube-proxy and every ingress data plane. Meanwhile the application may already have shut down.
+
+The window between "app stopped accepting" and "load balancers stopped sending" is where 502s come from.
+
+```yaml
+        lifecycle:
+          preStop:
+            exec:
+              command: ["sleep", "10"]
+      terminationGracePeriodSeconds: 45
+```
+
+The `preStop` sleep delays SIGTERM long enough for endpoint removal to propagate. During the sleep the container still serves traffic normally. Then the application gets SIGTERM and should finish in-flight requests before exiting.
+
+`terminationGracePeriodSeconds` must exceed the preStop sleep plus your longest expected request. It covers both — it is not additive to preStop, it is the total budget, after which the container is SIGKILLed.
+
+Your application must also handle SIGTERM by draining rather than exiting immediately. Many frameworks do not do this by default.
+
+## Rolling updates
+
+```yaml
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+```
+
+`maxUnavailable: 0` means capacity never dips below the desired count during a deploy — a new pod must become ready before an old one goes away. It makes deploys slower and is almost always correct for a user-facing service.
+
+`maxUnavailable: 25%` (the default) means a three-replica service can drop to two while a new pod starts. If two replicas cannot carry your peak load, the default is quietly a capacity incident on every deploy.
+
+Also set `minReadySeconds` for services that need warm-up — JIT compilation, cache priming — so a pod that is technically ready but not yet fast is not immediately sent full traffic.
+
+## HPA, and how it fights your other settings
+
+```yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: checkout
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: checkout
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 60
+```
+
+Three interactions to watch:
+
+**HPA and `replicas` in git.** If your Deployment manifest also specifies `replicas`, GitOps will fight the HPA — ArgoCD reverts to the manifest value, the HPA scales back up, repeat. Remove `replicas` from the manifest, or configure your GitOps tool to ignore that field.
+
+**HPA and PDB.** With `minAvailable: 2` and an HPA whose `minReplicas` is 2, no pod can ever be voluntarily evicted at minimum scale. Keep `minReplicas` above the PDB's floor.
+
+**HPA and VPA.** Both adjusting CPU is a feedback loop. VPA raises requests, utilisation percentage drops, HPA scales in, load per pod rises, VPA raises requests again. Use VPA for memory and HPA for CPU, or keep them off the same workload.
+
+`stabilizationWindowSeconds` on scale-down matters more than the scale-up settings. Scaling up fast is good; scaling down fast causes thrashing on spiky traffic.
+
+## Requests, limits, and QoS
+
+Requests drive scheduling. Limits drive throttling and OOM kills. They are different decisions.
+
+Set memory requests equal to limits for anything important. Exceeding a memory limit is an immediate OOM kill — there is no throttling for memory — and equal request and limit gives the pod Guaranteed QoS, making it last to be evicted under node pressure.
+
+CPU limits are more contentious. A CPU limit throttles at the ceiling even on an idle node, and the resulting latency spikes are hard to diagnose. Many teams set CPU requests and no CPU limit for latency-sensitive services, relying on requests for fair scheduling. That is a defensible choice as long as you monitor `container_cpu_cfs_throttled_periods_total`.
+
+Add a PriorityClass so the important things win under pressure:
+
+```yaml
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: production-critical
+value: 1000000
+globalDefault: false
+```
+
+## A checklist
+
+For any service you would be paged about:
+
+- 3+ replicas, spread across zones with `DoNotSchedule`
+- PDB with `maxUnavailable: 1`, verified not to block drains
+- Readiness probe not shared with liveness
+- Liveness probe with no downstream dependencies
+- Startup probe if the app takes more than ~10s to boot
+- `preStop` sleep, and SIGTERM handled in the application
+- `terminationGracePeriodSeconds` > preStop + longest request
+- `maxUnavailable: 0` on rolling updates
+- Memory request equal to limit
+- HPA `minReplicas` above the PDB floor
+- `replicas` absent from the manifest if an HPA owns it
+- PriorityClass set
+
+Then test it. Drain a node during business hours and watch for errors. Delete a pod under load. If nothing happens in either case, the configuration is real — and if something does, you have found it on a Tuesday afternoon rather than during an unplanned zone failure.

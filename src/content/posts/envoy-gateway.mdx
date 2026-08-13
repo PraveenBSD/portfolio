@@ -1,0 +1,181 @@
+---
+title: 'Using Envoy Gateway'
+description: 'A Gateway API implementation built on Envoy Proxy: how the pieces fit, what the policy CRDs are for, and where you still end up reaching for raw Envoy config.'
+pubDate: 2026-08-13
+tag: kubernetes
+hash: b41d7e2
+readingTime: 9 min read
+---
+
+Envoy Gateway is a CNCF project that takes Envoy Proxy — already the data plane under Istio, Contour, and most managed API gateways — and puts a Gateway API control plane in front of it. The pitch is that you get Envoy's data-plane capability without operating a service mesh or writing Envoy config by hand.
+
+That pitch mostly holds. Here is what the pieces actually are.
+
+## The shape of it
+
+Two layers, and keeping them straight makes everything else easier:
+
+- **Control plane** — a single `envoy-gateway` deployment. It watches Gateway API resources and translates them into Envoy xDS configuration.
+- **Data plane** — one Envoy deployment *per Gateway*, created for you. Your traffic goes through these; the control plane is not in the request path.
+
+That second point matters for availability planning. If the control plane is down, existing Envoy pods keep serving with their last known config. You lose the ability to *change* routing, not the ability to route.
+
+## Installing it
+
+```sh
+helm install envoy-gateway oci://docker.io/envoyproxy/gateway-helm \
+  --version v1.2.1 \
+  --namespace envoy-gateway-system \
+  --create-namespace
+```
+
+Then a GatewayClass pointing at the controller:
+
+```yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: envoy
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
+```
+
+Create a Gateway referencing that class and Envoy Gateway provisions an Envoy deployment plus a Service for it. On a cloud provider that Service is a LoadBalancer, so you get an external address without extra wiring.
+
+## Shaping the data plane with EnvoyProxy
+
+The generated Envoy deployment is fine for a demo and rarely fine for production — you will want replica counts, resource requests, and probably an internal load balancer for some gateways.
+
+That is what the `EnvoyProxy` CRD is for. It attaches to a GatewayClass (or a single Gateway) via `parametersRef`:
+
+```yaml
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: prod-proxy
+  namespace: envoy-gateway-system
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyDeployment:
+        replicas: 3
+        pod:
+          topologySpreadConstraints:
+            - maxSkew: 1
+              topologyKey: topology.kubernetes.io/zone
+              whenUnsatisfiable: DoNotSchedule
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: envoy
+        container:
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+      envoyService:
+        annotations:
+          service.beta.kubernetes.io/aws-load-balancer-scheme: internal
+  telemetry:
+    metrics:
+      prometheus: {}
+```
+
+Wire it up from the GatewayClass:
+
+```yaml
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
+  parametersRef:
+    group: gateway.envoyproxy.io
+    kind: EnvoyProxy
+    name: prod-proxy
+    namespace: envoy-gateway-system
+```
+
+The useful consequence: an internal gateway and an external gateway can use different GatewayClasses with different EnvoyProxy configs, and application teams attach routes to whichever they need without knowing anything about load balancer annotations.
+
+## The policy CRDs
+
+Gateway API core deliberately does not specify rate limiting, auth, or CORS. Envoy Gateway fills those gaps with four policy CRDs. Knowing which one owns which concern saves a lot of searching:
+
+| CRD | Applies to | Covers |
+| --- | --- | --- |
+| `ClientTrafficPolicy` | Gateway | downstream: TLS params, client IP detection, HTTP/2, request limits |
+| `BackendTrafficPolicy` | Gateway or Route | upstream: load balancing, retries, timeouts, circuit breaking, rate limits |
+| `SecurityPolicy` | Gateway or Route | CORS, JWT, OIDC, external auth, basic auth, IP allow lists |
+| `EnvoyExtensionPolicy` | Gateway or Route | Wasm, external processing |
+
+The mental model is direction: `ClientTrafficPolicy` is the connection coming in, `BackendTrafficPolicy` is the connection going out, `SecurityPolicy` is who is allowed through.
+
+A rate limit and retry budget on one route:
+
+```yaml
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: checkout-limits
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: checkout
+  rateLimit:
+    type: Local
+    local:
+      rules:
+        - limit:
+            requests: 100
+            unit: Minute
+  retry:
+    numRetries: 2
+    perRetry:
+      backOff:
+        baseInterval: 100ms
+        maxInterval: 1s
+    retryOn:
+      httpStatusCodes: [503]
+  timeout:
+    http:
+      requestTimeout: 30s
+```
+
+Note `type: Local` — that rate limit is per Envoy pod. With three replicas the effective limit is roughly triple what you wrote. For a real shared limit you need `type: Global`, which requires deploying the rate limit service and a Redis backend. This trips people up constantly; local rate limiting is a load-shedding tool, not a quota tool.
+
+## JWT auth without a sidecar
+
+`SecurityPolicy` covers the case that usually justifies buying an API gateway:
+
+```yaml
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: require-jwt
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: checkout
+  jwt:
+    providers:
+      - name: auth0
+        remoteJWKS:
+          uri: https://example.auth0.com/.well-known/jwks.json
+        claimToHeaders:
+          - claim: sub
+            header: x-user-id
+```
+
+Claims land as headers, so your service reads `x-user-id` instead of parsing tokens. Make sure the service is not reachable except through the gateway, or that header is trivially spoofable — a NetworkPolicy, not an assumption.
+
+## The escape hatch
+
+Envoy has features Envoy Gateway has not modelled yet. `EnvoyPatchPolicy` lets you patch the generated xDS directly with JSON patches.
+
+It works, and you should treat it as a last resort. Patches are written against generated resource names, so they break when the translation layer changes — meaning an Envoy Gateway upgrade can silently drop your patch. It is disabled by default for exactly this reason. If you use it, write a test that fails when the patch stops applying.
+
+## When it fits
+
+Envoy Gateway suits you if you want Envoy's data plane, Gateway API's role separation, and no mesh. It is a smaller operational surface than Istio by a wide margin — one control-plane deployment, no sidecars, no mTLS story to manage.
+
+It suits you less if you already run a mesh (use its gateway), if you need mature multi-cluster routing, or if your team's existing operational knowledge is all in NGINX. The policy CRDs are Envoy Gateway-specific, so that portion of your config does not move to another implementation for free.
