@@ -68,7 +68,7 @@ Deployment runs from GitHub Actions on every push to `main`, targeting **Workers
 | `CLOUDFLARE_API_TOKEN` | the token from step 1 |
 | `CLOUDFLARE_ACCOUNT_ID` | the account ID from step 2 |
 
-**4. Set your domain** in [`src/consts.ts`](src/consts.ts). The deploy workflow *fails on purpose* while it is still `https://example.com` — shipping the placeholder would point every canonical URL, sitemap entry, and RSS link at a domain you do not own.
+**4. The domain is set** to `https://praveenbsd.com` in [`src/consts.ts`](src/consts.ts) and [`public/robots.txt`](public/robots.txt). If you ever change it, change both — the deploy workflow guards against the `example.com` placeholder but cannot tell whether a real domain is the *right* one.
 
 **5. Push to `main`.** The first run creates the Worker. Then attach your domain: Workers & Pages → your Worker → Settings → Domains & Routes → Add custom domain.
 
