@@ -21,6 +21,16 @@ export default defineConfig({
 	// no request to fonts.googleapis.com at runtime.
 	fonts: [
 		{
+			// Display: headings, oversized numerals, the CRED-ish geometric register.
+			provider: fontProviders.google(),
+			name: 'Space Grotesk',
+			cssVariable: '--font-display',
+			weights: [500, 600, 700],
+			styles: ['normal'],
+			subsets: ['latin'],
+			fallbacks: ['ui-sans-serif', 'system-ui', 'sans-serif'],
+		},
+		{
 			// Everything readable.
 			provider: fontProviders.google(),
 			name: 'Inter',

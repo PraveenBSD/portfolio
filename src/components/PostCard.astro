@@ -17,7 +17,7 @@ const stamp = pubDate.toLocaleDateString('en-GB', {
 });
 ---
 
-<a class="card post-card" href={`/writing/${post.id}/`} data-tag={tag}>
+<a class="card card-hover post-card" href={`/writing/${post.id}/`} data-tag={tag}>
 	<div class="pc-top">
 		<span class="chip">{tag}</span>
 		<time datetime={pubDate.toISOString()}>{stamp}</time>

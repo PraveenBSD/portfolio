@@ -87,7 +87,23 @@ src/
 
 ## Design
 
-Light green gradient ground, neon green accents, card-based layout. Every colour is a custom property in the `:root` block at the top of [`src/styles/global.css`](src/styles/global.css).
+Light green gradient ground, neon green accents, and CRED-style structure: **squared corners, hard offset shadows, heavy geometric display type**. Every colour is a custom property in the `:root` block at the top of [`src/styles/global.css`](src/styles/global.css).
+
+The structural language is three tokens — change these and the whole site follows:
+
+| Token | | |
+| --- | --- | --- |
+| `--bw` | `1.5px` | border width on every card, button and pill |
+| `--sh` | `4px 4px 0 0 var(--ink)` | the hard shadow — pure offset, no blur |
+| `--ink` | `#0C1F14` | borders and shadows (not the same job as `--text`) |
+
+Nothing has a border radius except the portrait. Buttons and filter pills *press* on hover — they translate toward their shadow and the shadow shrinks, rather than lifting. Cards do the opposite, lifting away from the shadow. Add `.card-hover` alongside `.card` to opt a card into the lift.
+
+Type is three faces: **Space Grotesk** for display (headings, the oversized stat numerals), **Inter** for body, **JetBrains Mono** for metadata and code.
+
+### Your photo
+
+Save it as `src/assets/portrait.jpg` — see [`src/assets/README.md`](src/assets/README.md). It is picked up by a glob, so a missing file degrades to a monogram instead of breaking the build.
 
 Green is much lighter than violet at the same saturation, so the palette is split by **what a colour is allowed to touch**. This is the one rule to keep if you retune it:
 

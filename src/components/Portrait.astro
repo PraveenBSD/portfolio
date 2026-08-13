@@ -1,0 +1,40 @@
+---
+import { Image } from 'astro:assets';
+import type { ImageMetadata } from 'astro';
+
+/**
+ * Circular portrait for the landing block.
+ *
+ * The photo lives at `src/assets/portrait.{jpg,jpeg,png,webp}` so Astro can
+ * resize it and emit modern formats. It is looked up with a glob rather than a
+ * static import so a missing file degrades to a monogram instead of failing the
+ * build — drop the file in and it appears.
+ *
+ * If the crop cuts the face awkwardly, nudge --portrait-pos in global.css.
+ */
+const found = import.meta.glob<{ default: ImageMetadata }>(
+	'../assets/portrait.{jpg,jpeg,png,webp,avif}',
+	{ eager: true },
+);
+const portrait = Object.values(found)[0]?.default;
+---
+
+<div class="portrait">
+	{
+		portrait ? (
+			<Image
+				src={portrait}
+				alt="Praveen B S D"
+				widths={[220, 320, 440]}
+				sizes="(max-width: 720px) 160px, 220px"
+				class="portrait-img"
+				loading="eager"
+			/>
+		) : (
+			<div class="portrait-img portrait-fallback" aria-hidden="true">
+				P
+			</div>
+		)
+	}
+	<span class="portrait-badge">open to talk</span>
+</div>
