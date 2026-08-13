@@ -1,9 +1,19 @@
-name: Deploy
+# Manual fallback deploy.
+#
+# Automatic deploys are handled by Cloudflare Workers Builds, which watches the
+# repo directly — see README § Deploying. This workflow is deliberately NOT
+# triggered by push, because both firing on the same commit would race two
+# deploys against each other.
+#
+# Use it to deploy from a machine-independent place when Workers Builds is
+# unavailable, or re-enable the push trigger below if you switch back to
+# deploying from Actions (and turn Workers Builds off if you do).
+name: Deploy (manual)
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
+  # push:
+  #   branches: [main]
 
 # Never let two deploys race. Queue rather than cancel — a cancelled deploy
 # mid-upload is worse than a slightly stale one.

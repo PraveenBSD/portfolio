@@ -1,6 +1,6 @@
 # praveenbsd — portfolio & writing
 
-Personal site and blog. Static [Astro](https://astro.build) build, MDX content collection, deployed to Cloudflare Workers from GitHub Actions.
+Personal site and blog. Static [Astro](https://astro.build) build, MDX content collection, deployed to Cloudflare Workers via Workers Builds.
 
 ## Before you deploy
 
@@ -53,35 +53,42 @@ Everything that is content rather than layout lives in [`src/data/profile.ts`](s
 
 ## Deploying to Cloudflare
 
-Deployment runs from GitHub Actions on every push to `main`, targeting **Workers static assets**. Cloudflare now steers new projects to Workers rather than Pages — Pages remains supported but is no longer where the investment goes, and static asset requests on Workers are free and unmetered.
+Every push to `main` deploys to **Workers static assets**, built by **Workers Builds** — Cloudflare watches this repository directly, so there is no API token to create and no secret stored in GitHub.
+
+Workers rather than Pages because Cloudflare now steers new projects there; Pages remains supported but is no longer where the investment goes, and static asset requests on Workers are free and unmetered.
 
 ### One-time setup
 
-**1. Create an API token.** Cloudflare dashboard → My Profile → API Tokens → Create Token → use the **Edit Cloudflare Workers** template. If you will attach a custom domain, also give it `Zone → Zone → Read` and `Zone → Workers Routes → Edit` on the relevant zone.
+**1. Create the Worker.** Cloudflare dashboard → Workers & Pages → Create → Worker. Name it **`praveenbsd-portfolio`**.
 
-**2. Grab your account ID** from any domain's dashboard overview, right-hand sidebar.
+> The dashboard Worker name must match `name` in [`wrangler.jsonc`](wrangler.jsonc) exactly, or every build fails.
 
-**3. Add both as repository secrets** — GitHub → Settings → Secrets and variables → Actions:
+**2. Connect the repo.** On the new Worker: Settings → Builds → Connect. Authorise the Cloudflare GitHub app and pick `PraveenBSD/portfolio`.
 
-| Secret | Where it comes from |
+**3. Build settings:**
+
+| Field | Value |
 | --- | --- |
-| `CLOUDFLARE_API_TOKEN` | the token from step 1 |
-| `CLOUDFLARE_ACCOUNT_ID` | the account ID from step 2 |
+| Build command | `npm run build` |
+| Deploy command | `npx wrangler deploy` (default) |
+| Root directory | *(blank)* |
+| Production branch | `main` |
 
-**4. The domain is set** to `https://praveenbsd.com` in [`src/consts.ts`](src/consts.ts) and [`public/robots.txt`](public/robots.txt). If you ever change it, change both — the deploy workflow guards against the `example.com` placeholder but cannot tell whether a real domain is the *right* one.
+Node version comes from [`.node-version`](.node-version), already pinned to 22.
 
-**5. Push to `main`.** The first run creates the Worker. Then attach your domain: Workers & Pages → your Worker → Settings → Domains & Routes → Add custom domain.
+**4. Optional — preview builds.** Enable *non-production branch builds* to get a preview URL per branch. The preview deploy command defaults to `npx wrangler versions upload`, which publishes a version without promoting it to production.
 
-### The workflows
+**5. Push to `main`.** Cloudflare clones, builds, and deploys.
 
-| File | Trigger | Does |
-| --- | --- | --- |
-| [`ci.yml`](.github/workflows/ci.yml) | pull requests | `astro check` + build |
-| [`deploy.yml`](.github/workflows/deploy.yml) | push to `main`, manual | URL guard, `astro check`, build, deploy |
+**6. Attach the domain.** Worker → Settings → Domains & Routes → Add custom domain → `praveenbsd.com`. The zone is already on Cloudflare, so DNS is created automatically.
 
-`deploy.yml` type-checks and builds before deploying, so a broken content schema or a type error stops the release rather than shipping. Concurrency is set to queue rather than cancel — a deploy cancelled mid-upload is worse than a slightly stale one.
+### Why not GitHub Actions
 
-Wrangler is pinned in the workflow. Bump it deliberately; a floating version means an upstream release can change your deploy without a commit.
+[`deploy.yml`](.github/workflows/deploy.yml) still exists but is **manual-only** (`workflow_dispatch`). Its push trigger is commented out — with Workers Builds enabled, both would deploy the same commit and race.
+
+To go back to deploying from Actions instead: uncomment the push trigger in that workflow, add `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` as repository secrets, and disconnect the repo under the Worker's Builds settings.
+
+[`ci.yml`](.github/workflows/ci.yml) still runs on pull requests either way — Workers Builds compiles the project but does not run `astro check`, so that gate is worth keeping.
 
 ### Local deploy
 
