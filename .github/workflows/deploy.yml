@@ -1,0 +1,53 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Never let two deploys race. Queue rather than cancel — a cancelled deploy
+# mid-upload is worse than a slightly stale one.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy to Cloudflare
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - run: npm ci
+
+      # SITE.url drives canonical URLs, the sitemap, RSS links and OG tags.
+      # Shipping the placeholder means every one of those points at example.com,
+      # which is worse than not deploying — so fail loudly instead.
+      - name: Check the site URL is configured
+        run: |
+          if grep -q "url: 'https://example.com'" src/consts.ts; then
+            echo "::error file=src/consts.ts::SITE.url is still the placeholder 'https://example.com'. Set your real domain before deploying — it drives canonical URLs, the sitemap, RSS links and OG tags."
+            exit 1
+          fi
+
+      - run: npx astro check
+
+      - run: npm run build
+
+      - name: Deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: '4.122.0'
+          # No `command:` — the action defaults to `wrangler deploy`, which
+          # reads wrangler.jsonc and uploads ./dist.

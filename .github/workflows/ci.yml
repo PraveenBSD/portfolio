@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Type-check and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - run: npm ci
+
+      # Catches frontmatter that fails the content schema, broken component
+      # props, and type errors — before anything reaches main.
+      - run: npx astro check
+
+      - run: npm run build
+
+      # Deploying a page whose links point at a host that is not yours is the
+      # failure this catches. Cheap, and it has caught a real mistake before.
+      - name: Warn on placeholder site URL
+        if: always()
+        run: |
+          if grep -q "url: 'https://example.com'" src/consts.ts; then
+            echo "::warning file=src/consts.ts::SITE.url is still 'https://example.com'. The deploy workflow will refuse to run until this is set."
+          fi

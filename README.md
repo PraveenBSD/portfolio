@@ -1,6 +1,6 @@
 # praveenbsd — portfolio & writing
 
-Personal site and blog. Static [Astro](https://astro.build) build, MDX content collection, deployed on Cloudflare Pages.
+Personal site and blog. Static [Astro](https://astro.build) build, MDX content collection, deployed to Cloudflare Workers from GitHub Actions.
 
 ## Before you deploy
 
@@ -51,18 +51,53 @@ Frontmatter is schema-validated in [`src/content.config.ts`](src/content.config.
 
 Everything that is content rather than layout lives in [`src/data/profile.ts`](src/data/profile.ts) — hero copy, the stat tiles, work cards, experience, about, facts. Site title, nav, and social links are in [`src/consts.ts`](src/consts.ts).
 
-## Deploying to Cloudflare Pages
+## Deploying to Cloudflare
 
-Connect the repo in the Cloudflare dashboard (**Workers & Pages → Create → Pages → Connect to Git**) with:
+Deployment runs from GitHub Actions on every push to `main`, targeting **Workers static assets**. Cloudflare now steers new projects to Workers rather than Pages — Pages remains supported but is no longer where the investment goes, and static asset requests on Workers are free and unmetered.
 
-| Setting | Value |
+### One-time setup
+
+**1. Create an API token.** Cloudflare dashboard → My Profile → API Tokens → Create Token → use the **Edit Cloudflare Workers** template. If you will attach a custom domain, also give it `Zone → Zone → Read` and `Zone → Workers Routes → Edit` on the relevant zone.
+
+**2. Grab your account ID** from any domain's dashboard overview, right-hand sidebar.
+
+**3. Add both as repository secrets** — GitHub → Settings → Secrets and variables → Actions:
+
+| Secret | Where it comes from |
 | --- | --- |
-| Framework preset | Astro |
-| Build command | `npm run build` |
-| Build output directory | `dist` |
-| Node version | `22` (env var `NODE_VERSION=22`) |
+| `CLOUDFLARE_API_TOKEN` | the token from step 1 |
+| `CLOUDFLARE_ACCOUNT_ID` | the account ID from step 2 |
 
-Then **Custom domains → Set up a domain** and point it at your Cloudflare-managed zone. Every push to `main` redeploys; pull requests get preview URLs.
+**4. Set your domain** in [`src/consts.ts`](src/consts.ts). The deploy workflow *fails on purpose* while it is still `https://example.com` — shipping the placeholder would point every canonical URL, sitemap entry, and RSS link at a domain you do not own.
+
+**5. Push to `main`.** The first run creates the Worker. Then attach your domain: Workers & Pages → your Worker → Settings → Domains & Routes → Add custom domain.
+
+### The workflows
+
+| File | Trigger | Does |
+| --- | --- | --- |
+| [`ci.yml`](.github/workflows/ci.yml) | pull requests | `astro check` + build |
+| [`deploy.yml`](.github/workflows/deploy.yml) | push to `main`, manual | URL guard, `astro check`, build, deploy |
+
+`deploy.yml` type-checks and builds before deploying, so a broken content schema or a type error stops the release rather than shipping. Concurrency is set to queue rather than cancel — a deploy cancelled mid-upload is worse than a slightly stale one.
+
+Wrangler is pinned in the workflow. Bump it deliberately; a floating version means an upstream release can change your deploy without a commit.
+
+### Local deploy
+
+```bash
+npm run build
+npx wrangler deploy          # needs CLOUDFLARE_API_TOKEN in your environment
+npx wrangler versions upload # preview URL, does not touch production
+```
+
+### If you would rather use Pages
+
+Pages still works and its Git integration needs no Actions at all — connect the repo in the dashboard with build command `npm run build`, output directory `dist`, and `NODE_VERSION=22`. If you want Pages *via* Actions instead, delete [`wrangler.jsonc`](wrangler.jsonc) and change the deploy step's command to:
+
+```yaml
+command: pages deploy dist --project-name=praveenbsd-portfolio
+```
 
 ## Layout
 

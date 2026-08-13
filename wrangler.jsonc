@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "praveenbsd-portfolio",
+  "compatibility_date": "2026-08-13",
+
+  // Assets-only Worker: there is no `main` script, so every request is served
+  // straight from ./dist. Static asset requests are free and unbilled.
+  "assets": {
+    "directory": "./dist",
+    // Serve dist/404.html for unmatched paths instead of a bare Cloudflare 404.
+    "not_found_handling": "404-page"
+  },
+
+  "observability": {
+    "enabled": true
+  }
+}
