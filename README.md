@@ -84,6 +84,19 @@ Validate the config locally before pushing:
 npm run build && npx wrangler deploy --dry-run
 ```
 
+### Lockfile: regenerate with npm 10
+
+Cloudflare's build image runs **npm 10.9.2** and installs with `npm clean-install`, which fails outright if `package-lock.json` disagrees with `package.json`.
+
+npm 11 and npm 10 do not dedupe identically. npm 11 hoists `@emnapi/*` (transitive optional deps of `sharp`) in a way that leaves no top-level entry, and npm 10 then reports them as *missing from lock file* and aborts the build. If your local npm is 11.x, do not commit a lockfile it wrote:
+
+```bash
+npx -y npm@10.9.2 install --package-lock-only
+npx -y npm@10.9.2 ci --dry-run   # must pass — this is what the build runs
+```
+
+[`ci.yml`](.github/workflows/ci.yml) runs `npm ci` on the pinned Node version, so pull requests catch this. Pushing straight to `main` bypasses that check.
+
 **4. Optional — preview builds.** Enable *non-production branch builds* to get a preview URL per branch. The preview deploy command defaults to `npx wrangler versions upload`, which publishes a version without promoting it to production.
 
 **5. Push to `main`.** Cloudflare clones, builds, and deploys.
