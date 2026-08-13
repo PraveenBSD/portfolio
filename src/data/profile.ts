@@ -4,8 +4,8 @@
 
 export const HERO = {
 	now: 'Platform Engineering · Chennai, India',
-	headlineLead: 'I work on internal developer platforms',
-	headlineAccent: 'and the infrastructure behind them.',
+	headlineLead: 'I build the platforms',
+	headlineAccent: 'other engineers build on.',
 	lede: 'Platform engineering lead with eight years in SRE and infrastructure. My work covers GitOps, self-service tooling, Kubernetes, reliability, and cloud cost. I write here about that work.',
 } as const;
 
