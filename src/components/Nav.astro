@@ -1,46 +1,26 @@
 ---
-import { NAV_LINKS } from '../consts';
-import ThemeToggle from './ThemeToggle.astro';
+import { NAV_LINKS, SITE } from '../consts';
+
+// Mark the current section so the nav reflects where you are.
+const path = Astro.url.pathname;
 ---
 
-<header class="nav">
-	<div class="nav-inner">
-		<a href="/" class="brand">
-			<span class="dot"></span>praveen<span class="sigil">@</span><span class="path">platform</span><span
-				class="sigil">:~$</span
-			>
-		</a>
-		<div class="nav-right">
-			<nav class="nav-links" id="navlinks">
-				{NAV_LINKS.map((link) => <a href={link.href}>{link.label.toLowerCase()}</a>)}
-				<a href="/writing/" class="nav-cta">./blog</a>
-			</nav>
-			<ThemeToggle />
-			<button
-				class="hamburger"
-				id="hb"
-				aria-label="Menu"
-				aria-expanded="false"
-				aria-controls="navlinks">≡</button
-			>
-		</div>
+<header class="site-header">
+	<div class="wrap inner">
+		<a href="/" class="name">{SITE.author}</a>
+		<nav class="site-nav">
+			{
+				NAV_LINKS.map((link) => (
+					<a
+						href={link.href}
+						aria-current={
+							!link.href.includes('#') && path.startsWith(link.href) ? 'page' : undefined
+						}
+					>
+						{link.label}
+					</a>
+				))
+			}
+		</nav>
 	</div>
 </header>
-
-<script>
-	const hb = document.getElementById('hb');
-	const nl = document.getElementById('navlinks');
-
-	if (hb && nl) {
-		hb.addEventListener('click', () => {
-			const open = nl.classList.toggle('show');
-			hb.setAttribute('aria-expanded', String(open));
-		});
-		nl.addEventListener('click', (e) => {
-			if ((e.target as HTMLElement).tagName === 'A') {
-				nl.classList.remove('show');
-				hb.setAttribute('aria-expanded', 'false');
-			}
-		});
-	}
-</script>

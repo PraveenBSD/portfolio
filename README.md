@@ -85,23 +85,26 @@ src/
   styles/global.css      all styling
 ```
 
-## Theming
+## Design
 
-Two skins share one layout, both defined as custom properties at the top of [`src/styles/global.css`](src/styles/global.css):
+A quiet technical document: white, monochrome, one column, hairline rules, no ornament.
 
-| | |
-| --- | --- |
-| **paper** (light) | dark ink on warm paper — the default |
-| **crt** (dark) | phosphor green on near-black, with scanlines and heading glow |
+Every colour is a custom property in the `:root` block at the top of [`src/styles/global.css`](src/styles/global.css) — six greys and nothing else. There is no accent colour by design; emphasis comes from weight and spacing, and links are underlined rather than coloured.
 
-With no stored preference the site follows `prefers-color-scheme`. The toggle in the nav writes `light` / `dark` to `localStorage`, and [`ThemeScript.astro`](src/components/ThemeScript.astro) applies it inline in `<head>` before first paint, so there is no flash of the wrong skin.
+| Token | | |
+| --- | --- | --- |
+| `--text` | `#18181B` | body copy, headings |
+| `--text-2` | `#52525B` | secondary prose |
+| `--text-3` | `#A1A1AA` | metadata, labels |
+| `--border` | `#E7E7EA` | hairline rules |
 
-To retune a skin, edit the token blocks only — every rule downstream reads from them. Note the dark values are declared **twice** on purpose: once under `@media (prefers-color-scheme: dark)` for the OS default, once under `:root[data-theme="dark"]` so the toggle wins in both directions.
+Type is two faces with a strict division of labour: **Inter** for anything you read, **JetBrains Mono** for anything you scan — dates, tags, labels, stack lists, code. Section headings are small uppercase mono labels rather than large type, which is what keeps the pages calm.
+
+Content is capped at `--measure` (680px), and prose at 64–66 characters.
 
 ## Notes
 
-- **Everything is monospace.** Space Mono for headings, IBM Plex Mono for body and code.
-- **No client-side framework.** The only JavaScript shipped is the mobile nav toggle and the theme toggle; everything else is static HTML.
+- **Zero JavaScript.** Not "minimal" — the built pages contain no `<script>` tag at all. Nothing depends on hydration.
 - **Fonts are self-hosted.** Astro downloads both families at build time — the page makes no request to `fonts.googleapis.com`.
-- Code blocks are rendered by Shiki in both a light and a dark theme at build time; CSS picks the matching one, so highlighting follows the skin with no client-side rehighlighting.
+- **No animation** beyond 0.12s colour transitions on hover, and those are dropped under `prefers-reduced-motion`.
 - The prototype's slide-over modal became real post pages, so posts have their own URLs, work without JS, and can be crawled, shared, and syndicated.

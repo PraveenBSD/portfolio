@@ -5,8 +5,6 @@ import sitemap from '@astrojs/sitemap';
 import { defineConfig, fontProviders } from 'astro/config';
 import { SITE } from './src/consts.ts';
 
-const MONO_FALLBACK = ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'];
-
 // https://astro.build/config
 export default defineConfig({
 	site: SITE.url,
@@ -14,7 +12,7 @@ export default defineConfig({
 
 	markdown: {
 		shikiConfig: {
-			themes: { light: 'github-light-default', dark: 'github-dark-default' },
+			theme: 'github-light',
 			wrap: true,
 		},
 	},
@@ -23,24 +21,24 @@ export default defineConfig({
 	// no request to fonts.googleapis.com at runtime.
 	fonts: [
 		{
-			// Headings. Retro, typewriter-descended, a bit quirky.
+			// Everything readable.
 			provider: fontProviders.google(),
-			name: 'Space Mono',
-			cssVariable: '--font-display',
-			weights: [400, 700],
+			name: 'Inter',
+			cssVariable: '--font-sans',
+			weights: [400, 500, 600],
 			styles: ['normal'],
 			subsets: ['latin'],
-			fallbacks: MONO_FALLBACK,
+			fallbacks: ['ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
 		},
 		{
-			// Body and code. The most readable mono at paragraph length.
+			// Metadata, labels, tags, code — the technical register.
 			provider: fontProviders.google(),
-			name: 'IBM Plex Mono',
-			cssVariable: '--font-body',
-			weights: [400, 500, 600, 700],
+			name: 'JetBrains Mono',
+			cssVariable: '--font-mono',
+			weights: [400, 500],
 			styles: ['normal'],
 			subsets: ['latin'],
-			fallbacks: MONO_FALLBACK,
+			fallbacks: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
 		},
 	],
 });

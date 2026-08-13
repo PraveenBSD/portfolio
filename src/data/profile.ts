@@ -3,9 +3,9 @@
  */
 
 export const HERO = {
-	pill: 'pushing to <b>main</b> daily · new writing most days',
-	headline: 'I build the platforms',
-	headlineAccent: 'other engineers build on.',
+	/** Small mono line above the headline — role and location. */
+	now: 'Platform Engineering · Chennai, India',
+	headline: 'I build the platforms other engineers build on.',
 	lede: 'Platform engineering lead with 8 years turning unstable, hand-run systems into declarative, self-service platforms. I write here about the real work: GitOps, internal developer platforms, SRE, and keeping the cloud bill honest.',
 } as const;
 

@@ -2,17 +2,13 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 ---
 
-<BaseLayout title="404 — Praveen B S D" description="That page does not exist.">
-	<div class="wrap page-head" style="padding-bottom:60px">
-		<span class="eyebrow">// 404 · no such ref</span>
-		<h1>Nothing at this path.</h1>
+<BaseLayout title="Not found — Praveen B S D" description="That page does not exist.">
+	<header class="page-head wrap">
+		<p class="label">404</p>
+		<h1>Not found</h1>
 		<p>
-			The page you asked for does not exist — it may have been renamed, or never pushed in the first
-			place.
+			That page does not exist. Try the <a href="/">home page</a> or the
+			<a href="/writing/">writing archive</a>.
 		</p>
-		<p style="margin-top:26px">
-			<a href="/" class="btn btn-primary">Back home</a>
-			<a href="/writing/" class="btn btn-ghost">Browse writing</a>
-		</p>
-	</div>
+	</header>
 </BaseLayout>

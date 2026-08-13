@@ -19,7 +19,7 @@ export const SITE = {
 } as const;
 
 export const NAV_LINKS = [
-	{ href: '/#writing', label: 'Writing' },
+	{ href: '/writing/', label: 'Writing' },
 	{ href: '/#work', label: 'Work' },
 	{ href: '/#experience', label: 'Experience' },
 	{ href: '/#about', label: 'About' },

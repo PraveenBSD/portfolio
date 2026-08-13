@@ -19,33 +19,29 @@ const allTags = await getTags();
 ---
 
 <BaseLayout
-	title={`#${tag} — Praveen B S D`}
+	title={`${tag} — Praveen B S D`}
 	description={`Posts tagged ${tag} — platform engineering writing by Praveen B S D.`}
 >
-	<div class="wrap page-head">
-		<span class="eyebrow">// tagged</span>
+	<header class="page-head wrap">
+		<p class="label">Tag</p>
 		<h1>{tag}</h1>
-		<p>{posts.length} {posts.length === 1 ? 'post' : 'posts'} in this tag.</p>
-		<div class="tag-row">
+		<p>{posts.length} {posts.length === 1 ? 'post' : 'posts'}.</p>
+		<div class="tag-list">
 			{
 				allTags.map(({ tag: t, count }) =>
 					t === tag ? (
-						<span class="tag" style="border-color:var(--navy);background:var(--paper-2)">
-							{t} · {count}
-						</span>
+						<span aria-current="page">{t} ({count})</span>
 					) : (
-						<a class="tag" href={`/tags/${t}/`}>{t} · {count}</a>
+						<a href={`/tags/${t}/`}>{t} ({count})</a>
 					),
 				)
 			}
 		</div>
-	</div>
+	</header>
 
-	<section style="padding-top:38px">
-		<div class="wrap">
-			<div class="log">
-				{posts.map((post) => <PostRow post={post} />)}
-			</div>
+	<div class="wrap" style="padding-top:30px">
+		<div class="posts">
+			{posts.map((post) => <PostRow post={post} showDescription />)}
 		</div>
-	</section>
+	</div>
 </BaseLayout>

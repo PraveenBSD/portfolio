@@ -9,141 +9,92 @@ const posts = (await getPosts()).slice(0, 6);
 ---
 
 <BaseLayout title={SITE.title}>
-	<!-- HERO -->
-	<section class="hero">
-		<div class="wrap">
-			<span class="live-pill">
-				<span class="pulse"></span>
-				<span set:html={HERO.pill} />
-			</span>
-			<p class="prompt-line">
-				<span class="ps1">praveen@platform:~$</span> <span class="cmd">whoami</span>
-			</p>
-			<h1>
-				{HERO.headline} <span class="accent">{HERO.headlineAccent}</span><span
-					class="cursor"
-					aria-hidden="true"></span>
-			</h1>
-			<p class="hero-lede">{HERO.lede}</p>
-			<div class="hero-actions">
-				<a href="#writing" class="btn btn-primary">Read the latest &rarr;</a>
-				<a href="#work" class="btn btn-ghost">See the work</a>
-			</div>
-
-			<div class="status" aria-label="Selected impact">
-				<div class="status-bar">
-					<span class="lights"><i class="l1"></i><i class="l2"></i><i class="l3"></i></span>
-					<span>platform/status &mdash; selected impact &middot; last 4 years</span>
-				</div>
-				<div class="status-grid">
-					{
-						STATS.map((stat) => (
-							<div class="tile">
-								<div class="k">
-									<span class="sd" />
-									{stat.key}
-								</div>
-								<div class="v">
-									{stat.value}
-									<span class="unit">{stat.unit}</span>
-								</div>
-								<div class="c">{stat.note}</div>
-							</div>
-						))
-					}
-				</div>
-			</div>
+	<section class="intro wrap">
+		<p class="now">{HERO.now}</p>
+		<h1>{HERO.headline}</h1>
+		<div class="prose">
+			<p>{HERO.lede}</p>
 		</div>
 	</section>
 
-	<!-- WRITING -->
-	<section class="writing" id="writing">
-		<div class="wrap">
-			<div class="sec-head">
-				<h2>Writing</h2>
-				<span class="count">
-					// a running log &middot; newest first &middot; <a href="/rss.xml">RSS</a>
-				</span>
-			</div>
-			<div class="log">
-				{posts.map((post) => <PostRow post={post} />)}
-			</div>
-			<p style="margin-top:26px">
-				<a href="/writing/" class="btn btn-ghost">Browse the archive &rarr;</a>
-			</p>
+	<section class="section wrap" id="writing">
+		<h2 class="label">Writing</h2>
+		<div class="posts">
+			{posts.map((post) => <PostRow post={post} />)}
+		</div>
+		<p class="meta" style="margin:14px 0 0">
+			<a href="/writing/">All posts</a> · <a href="/rss.xml">RSS</a>
+		</p>
+	</section>
+
+	<section class="section wrap" id="impact">
+		<h2 class="label">Selected impact</h2>
+		<div class="kv">
+			{
+				STATS.map((stat) => (
+					<div class="row">
+						<span class="k">{stat.key}</span>
+						<span class="v">
+							{stat.value}
+							{stat.unit}
+						</span>
+						<span class="n">{stat.note}</span>
+					</div>
+				))
+			}
 		</div>
 	</section>
 
-	<!-- WORK -->
-	<section id="work">
-		<div class="wrap">
-			<div class="sec-head">
-				<h2>Selected work</h2>
-				<span class="count">// four platforms I own or built</span>
-			</div>
-			<div class="work-grid">
-				{
-					WORK.map((item) => (
-						<div class="card">
-							<span class="slug">{item.slug}</span>
+	<section class="section wrap" id="work">
+		<h2 class="label">Work</h2>
+		<div class="entries">
+			{
+				WORK.map((item) => (
+					<div class="item">
+						<div class="head">
 							<h3>{item.title}</h3>
-							<p>{item.blurb}</p>
-							<div class="stack">
-								{item.stack.map((tech) => (
-									<span class="chip">{tech}</span>
-								))}
-							</div>
+							<span class="aside">{item.slug}</span>
 						</div>
-					))
-				}
-			</div>
+						<p>{item.blurb}</p>
+						<p class="stack">{item.stack.join(' · ')}</p>
+					</div>
+				))
+			}
 		</div>
 	</section>
 
-	<!-- EXPERIENCE -->
-	<section id="experience">
-		<div class="wrap">
-			<div class="sec-head">
-				<h2>Experience</h2>
-				<span class="count">// 2018 &rarr; present</span>
-			</div>
-			<div class="xp">
-				{
-					EXPERIENCE.map((role) => (
-						<div class="role">
-							<div class="when">{role.when}</div>
-							<div>
-								<h3>
-									<span class="co">{role.company}</span> — {role.role}
-								</h3>
-								<p>{role.summary}</p>
-							</div>
+	<section class="section wrap" id="experience">
+		<h2 class="label">Experience</h2>
+		<div class="entries">
+			{
+				EXPERIENCE.map((role) => (
+					<div class="item">
+						<div class="head">
+							<h3>{role.company}</h3>
+							<span class="aside">{role.when}</span>
 						</div>
-					))
-				}
-			</div>
+						<p class="stack">{role.role}</p>
+						<p>{role.summary}</p>
+					</div>
+				))
+			}
 		</div>
 	</section>
 
-	<!-- ABOUT -->
-	<section id="about">
-		<div class="wrap">
-			<div class="sec-head"><h2>About</h2></div>
-			<div class="about-grid">
-				<div class="about">
-					{ABOUT_PARAGRAPHS.map((para) => <p set:html={para} />)}
-				</div>
-				<div class="facts">
-					{
-						FACTS.map((fact) => (
-							<div class="row">
-								<span class="lbl">{fact.label}</span>
-								<span class="val">{fact.value}</span>
-							</div>
-						))
-					}
-				</div>
-			</div>
+	<section class="section wrap" id="about">
+		<h2 class="label">About</h2>
+		<div class="prose" style="padding-top:18px">
+			{ABOUT_PARAGRAPHS.map((para) => <p set:html={para} />)}
+		</div>
+		<div class="kv pairs" style="margin-top:26px">
+			{
+				FACTS.map((fact) => (
+					<div class="row">
+						<span class="k">{fact.label}</span>
+						<span class="n">{fact.value}</span>
+					</div>
+				))
+			}
 		</div>
 	</section>
 </BaseLayout>

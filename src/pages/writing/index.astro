@@ -11,23 +11,21 @@ const tags = await getTags();
 	title="Writing — Praveen B S D"
 	description="Every post: platform engineering, GitOps, Kubernetes, SRE, DevSecOps, and FinOps — drawn from real platform work."
 >
-	<div class="wrap page-head">
-		<span class="eyebrow">// the archive</span>
+	<header class="page-head wrap">
+		<p class="label">Archive</p>
 		<h1>Writing</h1>
 		<p>
 			Everything, newest first. Short and specific, drawn from real work rather than trend cycles.
-			<a href="/rss.xml" style="color:var(--navy)">Subscribe via RSS</a>.
+			<a href="/rss.xml">Subscribe via RSS</a>.
 		</p>
-		<div class="tag-row">
-			{tags.map(({ tag, count }) => <a class="tag" href={`/tags/${tag}/`}>{tag} · {count}</a>)}
+		<div class="tag-list">
+			{tags.map(({ tag, count }) => <a href={`/tags/${tag}/`}>{tag} ({count})</a>)}
+		</div>
+	</header>
+
+	<div class="wrap" style="padding-top:30px">
+		<div class="posts">
+			{posts.map((post) => <PostRow post={post} showDescription />)}
 		</div>
 	</div>
-
-	<section style="padding-top:38px">
-		<div class="wrap">
-			<div class="log">
-				{posts.map((post) => <PostRow post={post} />)}
-			</div>
-		</div>
-	</section>
 </BaseLayout>
