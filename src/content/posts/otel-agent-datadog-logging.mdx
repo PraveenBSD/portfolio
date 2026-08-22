@@ -1,0 +1,202 @@
+---
+title: 'OTel agent to Datadog: logs without the Datadog agent'
+description: 'Shipping logs to Datadog through an OpenTelemetry Collector: the exporter config, the batching that causes 413s, the hostname bug that restarts your pods, and keeping the bill in your control.'
+pubDate: 2026-08-22
+tag: observability
+hash: ac31f6e
+readingTime: 9 min read
+---
+
+Datadog ships an agent, and it works. The reason to send logs through an OpenTelemetry Collector instead is not that the agent is bad, it is that instrumentation written against a vendor's agent stays written against that vendor. Collect with OTLP and the decision about where telemetry lands becomes an exporter block rather than a migration project.
+
+The catch is that the Datadog exporter has more sharp edges than most, and the ones that hurt in production are not in the getting-started guide.
+
+## The pipeline
+
+Same agent shape as any other Collector DaemonSet: `filelog` reads container logs, `k8sattributes` enriches them, the exporter changes.
+
+```yaml
+receivers:
+  filelog:
+    include: [/var/log/pods/*/*/*.log]
+    exclude: [/var/log/pods/*/otel-collector/*.log]
+    start_at: end
+    operators:
+      - type: container
+        id: container-parser
+
+processors:
+  k8sattributes:
+    auth_type: serviceAccount
+    extract:
+      metadata:
+        - k8s.namespace.name
+        - k8s.deployment.name
+        - k8s.pod.name
+        - k8s.container.name
+        - k8s.node.name
+      labels:
+        - tag_name: env
+          key: environment
+          from: pod
+        - tag_name: team
+          key: team
+          from: pod
+
+  resourcedetection:
+    detectors: [env, system]
+    timeout: 5s
+
+  transform/logs:
+    error_mode: ignore
+    log_statements:
+      - context: resource
+        statements:
+          # Shows up as the log Source in Datadog. Without it everything
+          # arrives with an empty source and the built-in pipelines do
+          # not fire.
+          - set(attributes["datadog.log.source"], "otel")
+
+exporters:
+  datadog:
+    api:
+      site: datadoghq.eu
+      key: ${env:DD_API_KEY}
+    # Set explicitly. See the hostname section below, it is not cosmetic.
+    hostname: ${env:K8S_NODE_NAME}
+    sending_queue:
+      enabled: true
+      batch:
+        min_size: 10
+        max_size: 100
+        flush_timeout: 10s
+
+service:
+  pipelines:
+    logs:
+      receivers: [filelog]
+      processors: [k8sattributes, resourcedetection, transform/logs]
+      exporters: [datadog]
+```
+
+Note what is missing from that pipeline: the `batch` processor. That is deliberate, and it is the first sharp edge.
+
+## Batching, and the 413 you will otherwise get
+
+The usual Collector advice is to put a `batch` processor in every pipeline. With the Datadog exporter that advice produces `413 Request Entity Too Large`, because the default `send_batch_size` of 8192 builds payloads well past Datadog's intake limits.
+
+The exporter's own guidance is to skip the batch processor and use `sending_queue::batch` instead, which is aware of those limits. If you must keep the processor, give Datadog its own instance with much smaller numbers rather than sharing one:
+
+```yaml
+processors:
+  batch:            # for every other exporter
+    timeout: 1s
+  batch/datadog:
+    send_batch_size: 10
+    send_batch_max_size: 100
+    timeout: 10s
+```
+
+The intake limits differ per signal, and the trace intake caps at 3.2MB, so a config that works for logs can still fail for traces. Splitting the pipelines is the simplest way to stop debugging this twice.
+
+## The hostname bug that restarts your pods
+
+This one costs an afternoon if you have not seen it.
+
+The Datadog exporter must resolve a hostname before it can initialise, and that detection blocks the `health_check` extension from answering probes. On Kubernetes, the kubelet's liveness probe fails during startup, the pod is killed, and it restarts into the same problem. The symptom is a CrashLoopBackOff with no error in the logs, which sends most people looking at the API key.
+
+Two fixes, and you should apply the first:
+
+```yaml
+exporters:
+  datadog:
+    hostname: ${env:K8S_NODE_NAME}     # skips detection entirely
+    hostname_detection_timeout: 10s    # or keep detection but bound it
+```
+
+With `K8S_NODE_NAME` from the downward API, hostname detection never runs and the health check answers immediately:
+
+```yaml
+env:
+  - name: K8S_NODE_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
+```
+
+If you prefer to keep detection, make sure `hostname_detection_timeout` is shorter than `failureThreshold * periodSeconds` on the liveness probe. The default timeout is 25 seconds, which is longer than most probe configurations tolerate.
+
+## Making logs look native in Datadog
+
+Datadog's log pipelines key off specific fields, and OTLP semantic conventions do not use the same names. Three mappings matter.
+
+**Source.** Set the `datadog.log.source` resource attribute, as in the config above. It drives which integration pipeline processes the log, so `datadog.log.source: nginx` gets you nginx parsing for free.
+
+**Service.** The exporter has handled `service.name` correctly since the logs agent exporter became the default in v0.108.0, so on any current version this works out of the box. On older versions you needed a service remapper in the Datadog UI. Check your version before assuming either.
+
+**Environment.** Datadog groups by the `env` tag. Map it explicitly rather than hoping `deployment.environment` is picked up:
+
+```yaml
+processors:
+  transform/env:
+    error_mode: ignore
+    log_statements:
+      - context: resource
+        statements:
+          - set(attributes["env"], attributes["deployment.environment.name"])
+            where attributes["deployment.environment.name"] != nil
+```
+
+Getting `env`, `service`, and `version` right is what makes Datadog's correlation between logs, traces, and metrics work. Without them the data arrives and none of the product features engage, which reads as "the integration is broken" when it is a tagging problem.
+
+## APM stats need a connector, not the exporter
+
+If you send traces as well as logs, one behaviour change matters: the exporter no longer computes APM stats by default. Trace metrics come from the Datadog connector instead.
+
+```yaml
+connectors:
+  datadog/connector:
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [k8sattributes, batch]
+      exporters: [datadog/connector, datadog]
+    metrics:
+      receivers: [otlp, datadog/connector]
+      processors: [batch]
+      exporters: [datadog]
+```
+
+The trace pipeline feeds the connector, the connector emits metrics, and the metrics pipeline sends those on. Without it, traces arrive and the APM service map and latency percentiles stay empty. There is a feature gate to restore the old behaviour, but the connector is the supported path.
+
+## The bill is a config decision
+
+Datadog charges by ingested log volume and indexed events, so the agent is where you decide what it costs. Filter at the node, before it becomes billable:
+
+```yaml
+processors:
+  filter/noise:
+    error_mode: ignore
+    logs:
+      log_record:
+        - 'IsMatch(body, ".*GET /health.*")'
+        - 'severity_number < SEVERITY_NUMBER_INFO and resource.attributes["env"] == "dev"'
+```
+
+Two habits worth adopting. Drop health checks and readiness probe logs at the agent: in most clusters they are the largest single category and nobody has ever read one. And treat debug logs from non-production environments as opt-in, since a service left at debug level in staging can quietly outspend production.
+
+Give the Collector's own queue metrics a dashboard too. `otelcol_exporter_queue_size` climbing means the exporter is not keeping up with the receiver, and the next thing that happens is dropped data. That is a metric about your pipeline, not your applications, and it is the one that tells you the pipeline is lying to you.
+
+## Vanilla Collector or DDOT
+
+Datadog ships its own distribution of the Collector, bundled with the agent. It is the same components with Datadog's defaults, plus their supported build, and it integrates with the agent's existing infrastructure metrics.
+
+Pick DDOT if you are already running the Datadog agent for host metrics and want one thing to operate. Pick the upstream contrib Collector if the reason you are doing this at all is portability, because the config you write is then the config that works anywhere. That is a real decision and it is worth making on purpose: the whole argument for OTLP collection is that the agent is not the thing you are committing to.
+
+## Where it fits
+
+The exporter block is about twenty lines. The rest of this post is the four things that go wrong afterwards: batching that exceeds intake limits, hostname detection that restarts your pods, tags that stop Datadog's correlation working, and a bill that grows because filtering never happened.
+
+Get those right and the useful property emerges: the receivers, processors, and semantic conventions are identical to the [Loki version](/writing/otel-agent-loki-logging/) of this pipeline. Changing backend becomes a diff in one block rather than a project, which is the only real reason to have done it this way.

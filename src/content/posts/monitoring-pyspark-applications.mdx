@@ -1,0 +1,178 @@
+---
+title: 'Monitoring setup for PySpark applications'
+description: 'Spark applications are ephemeral, so the usual scrape model does not fit. Wiring the Prometheus servlet, catching the Python memory that JVM metrics never show, and keeping evidence after the driver exits.'
+pubDate: 2026-08-19
+tag: observability
+hash: 6da4f52
+readingTime: 10 min read
+---
+
+Monitoring a long-running service is a solved problem: it has a stable address, you scrape it, you keep the series. A Spark application has neither property. It appears, runs for eleven minutes, and takes its driver UI with it when it goes. By the time someone asks why last night's job was slow, the only evidence left is a log line saying it finished.
+
+PySpark adds a second problem on top. A meaningful share of your memory is in Python processes that the JVM does not measure, so the executor gets OOM killed while every heap metric you collected looks fine.
+
+Both are fixable.
+
+## Turn on the Prometheus endpoints
+
+Spark has had a native Prometheus servlet since 3.0, and as of Spark 4 `spark.ui.prometheus.enabled` defaults to true. The driver then serves executor metrics directly:
+
+```
+http://<driver>:4040/metrics/executors/prometheus
+```
+
+That endpoint gives you executor-level memory and GC data. For the full metrics system, including the JVM source and the DAG scheduler internals, add a sink. Either ship a `metrics.properties`:
+
+```properties
+*.sink.prometheusServlet.class=org.apache.spark.metrics.sink.PrometheusServlet
+*.sink.prometheusServlet.path=/metrics/prometheus
+master.sink.prometheusServlet.path=/metrics/master/prometheus
+applications.sink.prometheusServlet.path=/metrics/applications/prometheus
+
+*.source.jvm.class=org.apache.spark.metrics.source.JvmSource
+```
+
+Or set the same thing inline, which avoids mounting a config file into every image:
+
+```python
+spark = (
+    SparkSession.builder
+    .appName("nightly-aggregation")
+    .config("spark.ui.prometheus.enabled", "true")
+    .config("spark.metrics.conf.*.sink.prometheusServlet.class",
+            "org.apache.spark.metrics.sink.PrometheusServlet")
+    .config("spark.metrics.conf.*.sink.prometheusServlet.path",
+            "/metrics/prometheus")
+    .config("spark.metrics.conf.*.source.jvm.class",
+            "org.apache.spark.metrics.source.JvmSource")
+    .getOrCreate()
+)
+```
+
+The servlet is still marked experimental in the Spark docs. It has been experimental for six years and is what most people run.
+
+## The PySpark memory trap
+
+This is the part that matters more than the wiring.
+
+A PySpark executor runs a JVM and one or more Python worker processes. UDFs, pandas UDFs, and anything touching `mapInPandas` execute in Python, and that memory lives outside the JVM heap entirely. Your heap metrics stay flat and healthy right up to the moment the kernel or the container runtime kills the container for exceeding its memory limit.
+
+Spark can measure it, but not by default:
+
+```python
+.config("spark.executor.processTreeMetrics.enabled", "true")
+```
+
+That enables `PythonRSS`, `PythonVMemory`, `OtherRSS`, and `OtherVMemory` in the executor metrics, sourced from the process tree rather than the JVM. Turn it on for anything running Python UDFs and alert on `PythonRSS` against the container limit rather than against the heap.
+
+While you are there, size the Python side explicitly instead of letting it borrow from overhead:
+
+```python
+.config("spark.executor.memory", "8g")
+.config("spark.executor.memoryOverhead", "2g")
+.config("spark.executor.pyspark.memory", "2g")
+```
+
+`spark.executor.pyspark.memory` is not enforced as a hard limit on most platforms, but it is included in the container request on Kubernetes, which is the number that decides whether you get killed. An executor that is repeatedly OOM killed with no heap pressure is almost always this.
+
+## Scraping something that will not be there
+
+On Kubernetes, annotate the driver and executor pods and let Prometheus service discovery find them while they exist:
+
+```python
+.config("spark.kubernetes.driver.annotation.prometheus.io/scrape", "true")
+.config("spark.kubernetes.driver.annotation.prometheus.io/port", "4040")
+.config("spark.kubernetes.driver.annotation.prometheus.io/path", "/metrics/prometheus")
+.config("spark.kubernetes.executor.annotation.prometheus.io/scrape", "true")
+```
+
+Then keep the scrape interval short. At the default 30 seconds a four-minute stage produces eight data points, which is not enough to see a spike. For batch workloads 10 or 15 seconds is more useful, and the series are short-lived so the cost is bounded.
+
+Be honest about what this misses: anything shorter than roughly two scrape intervals is invisible. If most of your jobs finish in ninety seconds, pull-based scraping is the wrong tool and you want the metrics pushed instead. A `StatsdSink` or a Graphite sink pointed at a collector will catch applications that a scraper never sees.
+
+The other approach worth knowing on Kubernetes is to skip pod discovery entirely and give every application a stable target by name. If you run through the Spark Operator, the driver Service is predictable, and a single `ServiceMonitor` with a label selector on `spark-role=driver` covers every application without per-job annotation config.
+
+## The metrics that mean something
+
+Spark exposes hundreds. These are the ones that answer real questions.
+
+**Is it running or waiting**
+
+- `executor.runTime` versus `executor.cpuTime`. A large gap means executors are alive but not computing, which is usually IO or lock contention.
+- `LiveListenerBus.queue.appStatus.size` growing means the listener bus is backed up, and the UI and metrics are behind reality.
+- `DAGScheduler.job.activeJobs` and `DAGScheduler.stage.runningStages` for basic progress.
+
+**Is it spilling**
+
+- `executor.diskBytesSpilled` above zero means data did not fit in memory. Some spill is fine. Spill that grows run over run is a job outgrowing its configuration.
+- `executor.memoryBytesSpilled` alongside it tells you how much was in flight.
+- `executor.shuffleLocalBytesRead` versus `executor.shuffleRemoteBytesRead`. Remote reads climbing means poor locality and a slower shuffle.
+
+**Is it dying**
+
+- `executor.jvmGCTime` as a fraction of `executor.runTime`. Above 10 percent, the executors are spending their time collecting garbage instead of doing work.
+- `PythonRSS` against the container limit, as above.
+- Executor churn, which is not one metric but the count of distinct executor IDs over the run. Steady replacement means something is killing them.
+
+**Memory pressure**
+
+- `JVMHeapMemory` and `JVMOffHeapMemory` for the JVM side.
+- `OnHeapExecutionMemory` and `OnHeapStorageMemory`, which split execution from cache and tell you whether an aggressive `persist()` is starving the shuffle.
+
+## Keep the evidence after the exit
+
+Metrics show what happened. The event log shows why, and it is the only thing that survives the application:
+
+```python
+.config("spark.eventLog.enabled", "true")
+.config("spark.eventLog.dir", "s3a://spark-logs/events")
+.config("spark.eventLog.logStageExecutorMetrics", "true")
+```
+
+`logStageExecutorMetrics` writes per-stage peak executor memory into the event log. Without it, you get the timeline but not the memory profile, and the memory profile is what you need for the OOM you are investigating.
+
+Run a History Server against that bucket. It costs one small deployment and it is the difference between "the job failed last Tuesday" and a full DAG view with stage timings and executor peaks, three weeks later.
+
+Two things to configure before it becomes a problem: compression, since event logs for a large application get large fast, and a retention policy on the bucket, since nobody ever deletes them by hand.
+
+## Alerts worth having
+
+Batch jobs need different alerts from services. Nobody should be paged because a stage is slow. They should be paged when the job will not finish in time to matter.
+
+```yaml
+groups:
+  - name: spark
+    rules:
+      - alert: SparkJobOverrunning
+        expr: |
+          time() - spark_app_start_time_seconds{app_name="nightly-aggregation"} > 5400
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: 'Nightly aggregation past 90 minutes, SLA is 2 hours'
+
+      - alert: SparkExecutorGCThrashing
+        expr: |
+          rate(spark_executor_jvmGCTime[5m]) / rate(spark_executor_runTime[5m]) > 0.15
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: 'Executors spending over 15 percent of runtime in GC'
+
+      - alert: SparkPythonMemoryNearLimit
+        expr: |
+          spark_executor_PythonRSS_bytes
+            / on(pod) kube_pod_container_resource_limits{resource="memory"} > 0.85
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: 'Python worker memory at 85 percent of the container limit'
+```
+
+The third one is the alert that repays writing this pipeline. It fires before the OOM kill, points at the actual cause, and would be invisible without process tree metrics enabled.
+
+## Where it fits
+
+The setup is three decisions, and none of them is about dashboards. Enable process tree metrics so Python memory is visible. Enable the event log with stage executor metrics so there is evidence after the exit. Scrape often enough that a short stage produces more than a couple of points, or push instead of scraping if your jobs are genuinely short.
+
+After that, the Grafana side is the same work as any other Prometheus source, and the [kube-prometheus-stack setup](/writing/grafana-prometheus-kubernetes-monitoring/) applies unchanged. The Spark-specific part is knowing that the default configuration hides the two things most likely to be killing your jobs.

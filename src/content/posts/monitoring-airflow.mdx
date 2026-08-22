@@ -1,0 +1,188 @@
+---
+title: 'Monitoring setup for Airflow'
+description: 'Airflow 3 emits metrics through StatsD or OpenTelemetry, and the choice changes your Prometheus config. The pipeline, the metrics that predict failures, and the alerts worth paging on.'
+pubDate: 2026-08-18
+tag: observability
+hash: 1e83b7a
+readingTime: 10 min read
+---
+
+Most Airflow monitoring stops at "did the DAG fail", which is the one thing Airflow already tells you. The interesting failures are quieter: the scheduler falling behind, parse times creeping up until new DAGs take minutes to appear, a pool starving tasks that never get marked failed because they never started.
+
+Airflow emits all of that. Here is how to get it into Prometheus, and which of the metrics actually predict trouble.
+
+## Two paths out of Airflow
+
+Airflow 3 supports StatsD and OpenTelemetry, configured in the `[metrics]` section. They are mutually exclusive in practice and the choice determines everything downstream.
+
+```ini
+[metrics]
+statsd_on = True
+statsd_host = statsd-exporter.airflow.svc.cluster.local
+statsd_port = 8125
+statsd_prefix = airflow
+```
+
+```ini
+[metrics]
+otel_on = True
+otel_prefix = airflow
+otel_service = airflow
+```
+
+StatsD is the mature path. Every component ships metrics to a `statsd-exporter` sidecar or deployment, Prometheus scrapes that, and you spend an afternoon writing mapping rules. OpenTelemetry is the direction the project is going, and in Airflow 3.3 the `otel_host` and `otel_port` keys are already deprecated in favour of the standard SDK environment variables:
+
+```yaml
+env:
+  - name: OTEL_EXPORTER_OTLP_ENDPOINT
+    value: http://otel-collector.observability:4318
+  - name: OTEL_EXPORTER_OTLP_PROTOCOL
+    value: http/protobuf
+```
+
+There is a real prerequisite hiding in the OTel path. Airflow's timing metrics are exported as exponential histograms, which means the Collector must be v0.115.0 or newer to translate them, and Prometheus needs native histograms turned on. On Prometheus 3.8 and above that is config, not a flag:
+
+```yaml
+global:
+  scrape_native_histograms: true
+```
+
+Miss this and your duration metrics silently arrive broken or not at all, which is a genuinely miserable thing to debug. If your Prometheus predates 3.8, start with `--enable-feature=native-histograms` instead, or stay on StatsD until you can upgrade.
+
+## The StatsD mapping problem
+
+Airflow's legacy metric names embed identifiers in the metric name itself: `dagrun.duration.success.my_etl_dag`. That is one metric name per DAG, which Prometheus handles badly and Grafana handles worse.
+
+Airflow 3.2 added new names that put those identifiers in tags instead, and `legacy_names_on` controls which you get. It defaults to `True`, meaning you get both:
+
+```ini
+[metrics]
+legacy_names_on = False
+```
+
+Turn it off once your dashboards use the tagged names. Leaving both on doubles the metric volume for no benefit, and it is the sort of default that quietly costs money on a hosted Prometheus for a year.
+
+If you are still on legacy names, `statsd-exporter` needs mapping rules to pull the identifiers back out:
+
+```yaml
+mappings:
+  - match: 'airflow.dagrun.duration.success.*'
+    name: airflow_dagrun_duration_success_seconds
+    labels:
+      dag_id: '$1'
+  - match: 'airflow.dagrun.duration.failed.*'
+    name: airflow_dagrun_duration_failed_seconds
+    labels:
+      dag_id: '$1'
+  - match: 'airflow.dag_processing.last_duration.*'
+    name: airflow_dag_processing_last_duration
+    labels:
+      dag_file: '$1'
+  - match: 'airflow.pool.open_slots.*'
+    name: airflow_pool_open_slots
+    labels:
+      pool: '$1'
+  # Everything else passes through with dots converted to underscores
+  - match: '.'
+    match_type: regex
+    action: drop
+    name: dropped
+```
+
+That last rule is deliberate. Without an explicit drop, every unmapped metric becomes a series with a machine-generated name, and a few hundred DAGs turn into a cardinality problem you will meet during an incident.
+
+## Control the volume at the source
+
+Airflow can filter before anything leaves the process, which is cheaper than filtering in Prometheus:
+
+```ini
+[metrics]
+metrics_allow_list = scheduler,executor,dagrun,pool,dag_processing
+statsd_disabled_tags = job_id,run_id
+```
+
+`statsd_disabled_tags` matters more than it looks. `run_id` is unique per DAG run, so leaving it as a tag creates a new time series for every execution, forever. The default already excludes it. Check that nobody has helpfully "fixed" that in your config.
+
+## The metrics that predict trouble
+
+Out of the hundred-odd metrics Airflow emits, these are the ones worth building on. Names are as emitted by Airflow 3.
+
+**Scheduler is alive and keeping up**
+
+- `scheduler_heartbeat` is a counter. A flat line means the scheduler is wedged even though the process is running, which is the failure that a liveness probe misses.
+- `scheduler.scheduler_loop_duration` climbing means the scheduler is taking longer per pass. It degrades before it breaks.
+- `scheduler.critical_section_duration` is time spent in the part of the loop that holds a lock. This is the metric that explains why adding a second scheduler did not help.
+
+**Work is actually starting**
+
+- `dagrun.schedule_delay` is the gap between when a run was due and when it started. If you alert on one metric, alert on this. It captures the user-visible symptom regardless of cause.
+- `dagrun.first_task_scheduling_delay` narrows it: the run started, but the first task waited.
+- `executor.open_slots` at zero means the executor is saturated, and everything queues.
+- `pool.starving_tasks` and `scheduler.tasks.starving` mean tasks are eligible but blocked on pool capacity. Nothing fails. Nothing runs either.
+
+**DAG parsing, the slow poison**
+
+- `dag_processing.total_parse_time` is how long a full parse of every DAG file takes. This grows quietly and then someone complains that new DAGs take five minutes to appear.
+- `dag_processing.import_errors` above zero means a file is broken. It usually means someone pushed a DAG that imports something not installed on the scheduler.
+- `dag_processing.processor_timeouts` means individual files are exceeding the parse timeout, generally because there is real work at module level instead of inside a task.
+
+**Outcomes**
+
+- `dagrun.duration.success` and `dagrun.duration.failed`, tagged by dag_id.
+- `ti_failures` and `operator_failures`, which separate "this DAG is broken" from "every task using this operator is broken", a distinction worth having at 3am.
+- `task_instances_without_heartbeats_killed` counts tasks the scheduler reaped because the worker stopped reporting. A steady trickle here means workers are being OOM killed and you are seeing the symptom, not the cause.
+
+## Health endpoints, and what they are for
+
+Airflow 3 exposes `/api/v2/monitor/health` returning component status as JSON. Use it for a dashboard panel, not for a liveness probe: it reports on the metadata database and the scheduler, so a scheduler blip restarts your API servers if you wire it to a probe. The docs are explicit about this. Use `/api/v2/version` for probes instead, and give the scheduler its own `/health`.
+
+## Alerts worth paging on
+
+Four rules cover most of what actually goes wrong:
+
+```yaml
+groups:
+  - name: airflow
+    rules:
+      - alert: AirflowSchedulerNotHeartbeating
+        expr: rate(airflow_scheduler_heartbeat_total[5m]) == 0
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: 'Scheduler process is up but not scheduling'
+
+      - alert: AirflowScheduleDelayHigh
+        expr: airflow_dagrun_schedule_delay > 900
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: 'DAG runs starting more than 15 minutes late'
+
+      - alert: AirflowNoOpenExecutorSlots
+        expr: airflow_executor_open_slots == 0
+        for: 20m
+        labels: { severity: warning }
+        annotations:
+          summary: 'Executor saturated: tasks are queuing, not failing'
+
+      - alert: AirflowDagParseTimeGrowing
+        expr: airflow_dag_processing_total_parse_time > 60
+        for: 30m
+        labels: { severity: warning }
+        annotations:
+          summary: 'Full DAG parse taking over a minute'
+```
+
+What is deliberately absent: an alert on individual task failures. Task failures are the DAG owner's business and Airflow already notifies them. A platform alert that fires on every retry in every team's pipeline is an alert people mute, and a muted alert channel is worse than no alert channel.
+
+## Logs and traces
+
+Metrics tell you the scheduler is slow. They do not tell you why. Airflow 3 also emits traces over OTLP, and if you are already running a Collector for metrics it is one more pipeline in the same config. Scheduler loop spans show where the time goes inside the critical section, which is not something you can reason about from a duration metric alone. The [OpenTelemetry and Jaeger setup](/writing/opentelemetry-with-jaeger/) covers the tracing side.
+
+For task logs, ship them off the workers. Airflow's default is local files on whichever worker ran the task, which is exactly the log you cannot find when the worker has been recycled. Point remote logging at object storage, or run a Collector agent on the nodes and send them to [Loki](/writing/otel-agent-loki-logging/).
+
+## Where it fits
+
+Start with StatsD if you want this working today, and OpenTelemetry if you are building the pipeline for the next three years. Either way the metrics are the same and the alerts are the same.
+
+The one thing worth doing before any of it: decide who gets paged for `dagrun.schedule_delay` and who gets paged for a failing task. Those are different people. Platform monitoring that pages the platform team for a broken DAG teaches everyone to ignore the channel, and by the time the scheduler genuinely stops, nobody is looking.

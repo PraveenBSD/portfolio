@@ -1,0 +1,193 @@
+---
+title: 'OTel agent to Loki: logs without a log shipper'
+description: 'The Loki exporter is gone from the Collector. What replaced it, how OTLP attributes become Loki labels, and the two limits that will reject your logs in production.'
+pubDate: 2026-08-21
+tag: observability
+hash: 0b7e5c3
+readingTime: 9 min read
+---
+
+If you last set up Loki with Promtail, two things have changed. Promtail is done, and the Collector's `loki` exporter has been removed from contrib entirely. The current path is an OpenTelemetry Collector reading container logs and writing OTLP directly to Loki's native ingest endpoint.
+
+This is a better arrangement than it sounds. One agent handles logs, metrics, and traces, and the log pipeline stops being a separate technology with its own config language.
+
+## The shape of it
+
+A Collector runs as a DaemonSet on every node. It tails container log files, enriches each record with Kubernetes metadata, and posts OTLP to Loki. No sidecars, no application changes, and nothing in the application needs to know Loki exists.
+
+```yaml
+receivers:
+  filelog:
+    include: [/var/log/pods/*/*/*.log]
+    exclude: [/var/log/pods/*/otel-collector/*.log]
+    start_at: end
+    include_file_path: true
+    include_file_name: false
+    operators:
+      # Parses the CRI or Docker format, handles partial lines from long
+      # log entries, and promotes the stream and timestamp. Before this
+      # operator existed, everyone hand-wrote three regex parsers here.
+      - type: container
+        id: container-parser
+        add_metadata_from_filepath: true
+
+processors:
+  k8sattributes:
+    auth_type: serviceAccount
+    passthrough: false
+    extract:
+      metadata:
+        - k8s.namespace.name
+        - k8s.deployment.name
+        - k8s.statefulset.name
+        - k8s.pod.name
+        - k8s.container.name
+        - k8s.node.name
+      labels:
+        - tag_name: app
+          key: app.kubernetes.io/name
+          from: pod
+        - tag_name: team
+          key: team
+          from: pod
+    pod_association:
+      - sources:
+          - from: resource_attribute
+            name: k8s.pod.ip
+      - sources:
+          - from: connection
+
+  resourcedetection:
+    detectors: [env, system]
+    system:
+      hostname_sources: [os]
+
+  batch:
+    timeout: 5s
+    send_batch_size: 1024
+
+exporters:
+  otlphttp/loki:
+    endpoint: http://loki-gateway.observability.svc.cluster.local/otlp
+    headers:
+      X-Scope-OrgID: platform
+
+service:
+  pipelines:
+    logs:
+      receivers: [filelog]
+      processors: [k8sattributes, resourcedetection, batch]
+      exporters: [otlphttp/loki]
+```
+
+Two details in that config are easy to get wrong. The endpoint is `/otlp`, not `/otlp/v1/logs`: the exporter appends the signal path itself, and giving it the full path produces a 404 that looks like a networking problem. And `exclude` on the Collector's own logs is not optional. Without it, one error log from the Collector becomes an error log about failing to ship an error log, and the loop is self-sustaining.
+
+`start_at: end` means a restarted Collector does not re-ship the entire log file. Use `beginning` only for the first deployment, if you care about the backlog.
+
+## Attributes become labels, and that is the whole game
+
+Loki indexes labels. Everything else is stored as structured metadata, searchable but not indexed. When logs arrive over OTLP, Loki decides which is which by a fixed rule: a default set of resource attributes become index labels, and all remaining resource, scope, and log attributes become structured metadata.
+
+Two consequences follow immediately.
+
+**Loki has a default limit of 15 index labels.** The default OTLP mapping already selects more resource attributes than that, and it works only because several are mutually exclusive. Add a couple of your own and you hit the wall.
+
+**Two defaults are actively bad.** Grafana's own guidance is that `k8s.pod.name` and `service.instance.id` should no longer be index labels because of cardinality: every pod restart mints a new label value, and a deployment that restarts often will fill your index with values nobody queries. They remain defaults only because removing them would break existing installs.
+
+Fix it on the Loki side:
+
+```yaml
+limits_config:
+  otlp_config:
+    resource_attributes:
+      attributes_config:
+        - action: index_label
+          attributes:
+            - k8s.namespace.name
+            - k8s.deployment.name
+            - k8s.container.name
+            - service.name
+            - team
+        - action: structured_metadata
+          attributes:
+            - k8s.pod.name
+            - service.instance.id
+      ignore_defaults: true
+```
+
+`ignore_defaults: true` is what stops the built-in list applying on top of yours. Without it you get your labels plus the defaults, which is how people end up over the limit while believing they set five labels.
+
+The rule of thumb: a label is worth indexing if you would put it in a stream selector. `{namespace="payments", deployment="api"}` is a query people write. `{pod="api-7d4f8b9c-x2k4p"}` is a query nobody writes, because nobody knows the pod name before they start looking.
+
+## The limit that rejects logs in production
+
+Structured metadata has size limits, and the default that bites is per line: 64KB total, 128 entries.
+
+The specific thing that trips it is a stack trace. OpenTelemetry log integrations attach `exception.stacktrace` when a log record carries an exception, and a deep Java or Python trace goes past 64KB comfortably. Loki rejects the entry with a 400, which is non-retryable, so the Collector drops it. Your logs look fine until the exact moment something breaks, and then the log about the breakage is the one that goes missing.
+
+Watch for it:
+
+```promql
+sum by (reason) (rate(loki_discarded_samples_total[5m]))
+```
+
+The reasons to look for are `structured_metadata_too_large` and `structured_metadata_too_many`. If you see either, decide deliberately: raise the limit for that tenant, or drop the attribute at ingest if you do not query stack traces in Loki anyway.
+
+```yaml
+limits_config:
+  otlp_config:
+    log_attributes:
+      - action: drop
+        attributes:
+          - exception.stacktrace
+```
+
+Rules are first-match-wins, so a specific attribute rule must come before any catch-all regex.
+
+## Cut volume at the agent
+
+Every byte you send is a byte you store and pay for. The agent is the cheapest place to decide you do not need it:
+
+```yaml
+processors:
+  filter/noise:
+    error_mode: ignore
+    logs:
+      log_record:
+        # Drop health check noise from the ingress controller
+        - 'IsMatch(body, ".*GET /healthz.*") and resource.attributes["k8s.namespace.name"] == "ingress-nginx"'
+
+  transform/trim:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        statements:
+          # Cap absurd lines rather than dropping the record entirely
+          - replace_pattern(body, "^(.{8192}).*$", "$$1")
+```
+
+Health check logs are usually the single largest category of useless volume in a Kubernetes cluster, and dropping them at the node costs nothing.
+
+What not to do at the agent: sampling. Sampled logs are worse than no logs, because you cannot tell whether the absence of an error means it did not happen or that it was not sampled. Drop categories you never read. Keep everything in the categories you do.
+
+## Correlation is the reason to bother
+
+The real payoff of doing logs through the Collector is that the same pipeline carries traces. If your applications emit trace context, the Collector puts `trace_id` in the log record, Loki stores it as structured metadata, and Grafana's derived fields turn it into a link straight to the trace.
+
+```yaml
+processors:
+  transform/traceid:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        statements:
+          - set(attributes["trace_id"], trace_id.string) where trace_id.string != ""
+```
+
+Getting from a log line to the full request trace in one click is the thing that changes how quickly incidents get diagnosed. The [OpenTelemetry and Jaeger post](/writing/opentelemetry-with-jaeger/) covers the trace half.
+
+## Where it fits
+
+Loki is a good fit when you want cheap retention and you mostly query by workload, and a poor fit when you want full-text search across everything with no idea where to start. It indexes labels, not content, and that tradeoff is the entire product.
+
+The pipeline itself is not the hard part. The hard part is the label decision, and it is worth making once, deliberately, before you have a year of data indexed by pod name. If you are sending the same logs to a commercial backend instead, the agent config barely changes: only the exporter does, as the [Datadog version](/writing/otel-agent-datadog-logging/) shows.

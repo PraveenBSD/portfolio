@@ -1,0 +1,169 @@
+---
+title: 'OpenCost: getting started with Kubernetes cost allocation'
+description: 'Per-namespace, per-workload cost from metrics you already collect. Installing it against an existing Prometheus, what it actually measures, and the number everyone argues about.'
+pubDate: 2026-08-16
+tag: finops
+hash: f0c92d1
+readingTime: 9 min read
+---
+
+Your cloud bill tells you what the cluster cost. It does not tell you which team caused it. OpenCost closes that gap: it takes the metrics you are already scraping, joins them to instance pricing, and gives you cost per namespace, per deployment, per label.
+
+It is a CNCF project and, more usefully, a published specification. The allocation methodology is written down rather than being a vendor's black box, which matters the first time someone in finance asks how a number was produced.
+
+## What it needs before you start
+
+OpenCost is not a metrics pipeline. It queries one. You need Prometheus already scraping cAdvisor and kube-state-metrics, which any `kube-prometheus-stack` install gives you.
+
+That dependency is the whole architecture. OpenCost reads container CPU and memory usage from your existing metrics, reads node pricing from the cloud provider's API, multiplies, and writes the result back out as new metrics. If your Prometheus is missing kube-state-metrics, OpenCost reports zeros and says nothing about why.
+
+## Install against the Prometheus you have
+
+The default chart values assume an in-cluster Prometheus at `prometheus-server.prometheus-system`. Point it at yours instead:
+
+```sh
+helm repo add opencost https://opencost.github.io/opencost-helm-chart
+
+helm upgrade --install opencost opencost/opencost \
+  --namespace opencost --create-namespace \
+  --set opencost.prometheus.internal.serviceName=kube-prometheus-stack-prometheus \
+  --set opencost.prometheus.internal.namespaceName=monitoring \
+  --set opencost.prometheus.internal.port=9090 \
+  --set opencost.metrics.serviceMonitor.enabled=true
+```
+
+`serviceMonitor.enabled=true` is the part people forget. Without it OpenCost computes costs and exposes them on its own `/metrics` endpoint, and nothing scrapes them. The API works, the UI works, and every Grafana panel built on OpenCost metrics stays empty.
+
+For Grafana Cloud or Amazon Managed Prometheus, use the external block instead:
+
+```yaml
+opencost:
+  prometheus:
+    internal:
+      enabled: false
+    external:
+      enabled: true
+      url: https://prometheus-prod-01.grafana.net/api/prom
+    existingSecretName: opencost-prometheus-auth
+```
+
+Credentials go in a Secret with the keys `DB_BASIC_AUTH_USERNAME` and `DB_BASIC_AUTH_PW`, or `DB_BEARER_TOKEN`. Setting `username` and `password` inline in the values file puts them in the Helm release, which is stored in the cluster as a Secret nobody remembers to rotate.
+
+## What it actually emits
+
+OpenCost writes a small set of metrics, and knowing their names is the difference between using it and clicking around the UI:
+
+| Metric | What it carries |
+| --- | --- |
+| `node_total_hourly_cost` | Full hourly price of a node, by instance type |
+| `node_cpu_hourly_cost`, `node_ram_hourly_cost` | The split OpenCost uses to price a pod |
+| `kubecost_node_is_spot` | Whether the node is spot, which is where most of the variance lives |
+| `container_cpu_allocation` | CPU cores allocated to a container over the window |
+| `container_memory_allocation_bytes` | Bytes allocated to a container |
+| `container_gpu_allocation` | GPUs allocated, if any |
+| `pv_hourly_cost`, `pod_pvc_allocation` | Storage price and which pod is holding it |
+| `kubecost_load_balancer_cost` | Per-service LB cost, usually a surprise |
+| `kubecost_network_nat_gateway_egress_cost` | NAT gateway egress, usually a bigger surprise |
+
+The `kubecost_` prefix is a naming holdover from the project's origins, not a sign you are using a commercial product.
+
+Allocation is the key concept: OpenCost prices `max(request, usage)` for each container, not usage alone. A pod requesting 4 cores and using 0.2 is charged for 4, because that is what it took off the cluster. This is the correct behaviour and it is also the number that starts arguments, so say it out loud before you publish the first dashboard.
+
+## The allocation API
+
+The UI is a convenience. The API is the product:
+
+```sh
+kubectl -n opencost port-forward svc/opencost 9003:9003
+
+# Last 7 days, one row per namespace, summed
+curl -sG 'http://localhost:9003/allocation/compute' \
+  --data-urlencode 'window=7d' \
+  --data-urlencode 'aggregate=namespace' \
+  --data-urlencode 'accumulate=true' | jq '.data'
+```
+
+Four parameters do nearly everything:
+
+- `window` accepts `today`, `week`, `7d`, `24h`, or an RFC3339 range.
+- `aggregate` accepts `namespace`, `controller`, `pod`, `node`, `cluster`, and (the useful one) `label:team`.
+- `step` splits the window into buckets, so `window=30d&step=1d` gives you a daily series.
+- `accumulate=true` collapses the window into one number per key.
+
+Aggregating by label is what turns this into showback. If every workload carries a `team` label, then `aggregate=label:team` is a chargeback report, and the gap between that total and the cluster total is your unallocated cost.
+
+There are three more endpoints worth knowing: `/assets` for cluster infrastructure priced independently of workloads, `/cloudCost` for the non-Kubernetes spend once you wire up a cloud billing integration, and `/inferenceCost/total` for per-token model costs if you are running inference workloads.
+
+## Idle cost, and why the totals do not match
+
+A cluster costs more than the sum of its pods. Nodes have unallocated capacity, system daemonsets take a slice, and control planes bill regardless. That difference is idle cost, and OpenCost reports it as its own line rather than smearing it across teams.
+
+This is the first thing to explain to whoever consumes the report. If you distribute idle proportionally, high-request teams subsidise the cluster's spare capacity. If you leave it separate, the platform team owns it, which is usually correct because the platform team is who decides node sizes and scaling policy. Either is defensible. Silently switching between them is not.
+
+Sustained idle above roughly 30 percent is a capacity problem, not an accounting one: it means bin packing, requests, or the autoscaler need attention, and no amount of allocation reporting will fix it.
+
+## Retention is shorter than you think
+
+The chart ships with:
+
+```yaml
+opencost:
+  exporter:
+    retention1d: 15   # days of daily-resolution data
+    retention1h: 49   # hours of hourly-resolution data
+```
+
+Fifteen days. Anything longer lives in Prometheus, or does not exist. If you want month-over-month trends, either extend retention on your Prometheus and query the OpenCost metrics directly, or export the allocation API to a warehouse on a schedule. Discovering this at the end of the first quarter is a bad time to discover it.
+
+## On-prem and unusual hardware
+
+Without a cloud pricing API there is nothing to multiply by, so supply the rates yourself:
+
+```yaml
+opencost:
+  customPricing:
+    enabled: true
+    provider: custom
+    costModel:
+      CPU: 1.25          # per core per hour
+      RAM: 0.50          # per GiB per hour
+      GPU: 0.95
+      storage: 0.25
+      internetNetworkEgress: 0.12
+```
+
+Deriving those rates is the actual work: take the amortised cost of the hardware plus power, cooling, and the share of the datacentre contract, then divide by usable capacity rather than installed capacity. The numbers will be wrong. They will still be far more useful than no numbers, and they get better once someone disagrees with them in a review.
+
+## Alerts worth having
+
+Cost dashboards get opened when someone is already worried. Alerts arrive earlier:
+
+```yaml
+groups:
+  - name: cost
+    rules:
+      - alert: NamespaceCostSpike
+        expr: |
+          sum by (namespace) (
+            container_cpu_allocation * on(node) group_left() node_cpu_hourly_cost
+          )
+          >
+          2 * avg_over_time(
+            sum by (namespace) (
+              container_cpu_allocation * on(node) group_left() node_cpu_hourly_cost
+            )[7d:1h]
+          )
+        for: 6h
+        labels:
+          severity: warning
+        annotations:
+          summary: '{{ $labels.namespace }} is running at twice its weekly average cost'
+```
+
+Two more that repay the effort: a rule on `kubecost_network_nat_gateway_egress_cost` (NAT egress is the classic silent leak, and a chatty new service can double it overnight), and one on the ratio of spot to on-demand nodes, since a spot capacity shortage quietly refills your cluster with on-demand instances at three times the price.
+
+## Where it fits
+
+OpenCost answers "what did this cost". It does not answer "what should it cost". There is no rightsizing engine, no forecast, no recommendation queue. Pair it with usage data from your own monitoring to find the workloads requesting far more than they use: the [Prometheus and Grafana setup](/writing/grafana-prometheus-kubernetes-monitoring/) already has both halves.
+
+The failure mode is not technical. It is publishing a per-team number that nobody agreed on the methodology for, then spending three meetings defending the arithmetic instead of reducing the bill. Agree on how idle is handled and whether you price requests or usage, write it in the dashboard description, and the numbers start doing their job.
