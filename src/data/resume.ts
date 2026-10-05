@@ -15,11 +15,11 @@ export const SUMMARY =
 
 /** The five headline numbers. The home page shows the first four. */
 export const IMPACT = [
-	{ value: '~70%', label: 'less config drift', detail: 'standardised infrastructure provisioning on Terraform' },
-	{ value: '~40%', label: 'lower compute cost', detail: 'Spot, On-Demand and Reservation blending, holding capacity for traffic spikes' },
-	{ value: '~50%', label: 'lower MTTR', detail: 'full-stack observability paired with structured incident response' },
+	{ value: '~30%', label: 'lower compute spend', detail: 'Spot, On-Demand and Reservation blending, holding capacity for traffic spikes' },
+	{ value: '~40%', label: 'lower median MTTR', detail: 'full-stack observability paired with a structured incident-response process' },
 	{ value: '99.9%', label: 'availability sustained', detail: 'Pod Disruption Budgets, topology spread, and mixed node pools' },
-	{ value: '~40%', label: 'faster rollouts', detail: 'end-to-end ArgoCD GitOps with automated, auditable delivery' },
+	{ value: '~33%', label: 'faster releases', detail: 'end-to-end ArgoCD GitOps with automated, auditable delivery' },
+	{ value: 'Zero', label: 'data loss on migration', detail: 'full AWS account move including DNS cutover, with minimal downtime' },
 ] as const;
 
 export const EXPERTISE = [
@@ -27,7 +27,6 @@ export const EXPERTISE = [
 	'Internal Developer Platform',
 	'Platform as a Product',
 	'Developer Experience',
-	'Golden Paths / Paved Roads',
 	'Self-Service Infrastructure',
 	'GitOps',
 	'Infrastructure as Code',
@@ -47,33 +46,34 @@ export const POSITIONS = [
 		title: 'Senior SDE (Manager), Platform Engineering',
 		when: '2025 to Present',
 		bullets: [
-			'Standardised infrastructure provisioning across all services with Terraform, cutting manual configuration drift by ~70% and speeding up environment onboarding.',
+			'Standardised infrastructure provisioning across all services with Terraform, so environments are reproducible and drift surfaces as a plan diff in review rather than as an incident.',
 			'Introduced Crossplane to expose cloud infrastructure as self-service, Kubernetes-native APIs, giving product teams golden paths to provision resources without ticket-based handoffs.',
 			'Authored reusable Helm charts for all platform services, making Kubernetes deployments consistent, repeatable, and version-controlled.',
-			'Established end-to-end GitOps with ArgoCD, reducing rollout time by ~40% and delivering auditable, self-service continuous delivery across environments.',
+			'Established end-to-end GitOps with ArgoCD, cutting median rollout time by about a third and delivering auditable, self-service continuous delivery across environments.',
 			"Built GitOps automation agents that auto-raise pull requests for platform updates to each product team's DevOps repositories, propagating changes consistently while product teams keep control through standard review and approval.",
 			'Developed a Claude-powered self-service skill that walks product teams through platform upgrades and new releases step by step, lowering onboarding friction and reducing support load on the platform team.',
 			'Drove a cultural shift from manual deployments to declarative, Kubernetes-native workflows, helping engineering teams adopt GitOps practices.',
 			'Led the migration from Ingress to Kubernetes Gateway API, improving traffic management, security control, and extensibility across services.',
 			'Built CI pipelines with integrated security scanning and policy gates, improving deployment safety and reducing rollback frequency.',
 			'Deployed Kyverno for admission-time policy enforcement and set up firewall monitoring and alerting to catch network-level threats early.',
+			'Built a FinOps cost pipeline that attributes cloud spend to individual product teams from their actual usage, across both single-tenant and multi-tenant cloud accounts, so cost ownership is visible per team rather than as one organisation-wide figure.',
 		],
-		stack: ['Terraform', 'Crossplane', 'ArgoCD', 'Helm', 'Gateway API', 'Kyverno'],
+		stack: ['Terraform', 'Crossplane', 'ArgoCD', 'Helm', 'Gateway API', 'Kyverno', 'GitHub Actions'],
 	},
 	{
 		company: 'Mad Street Den',
 		title: 'Technical Lead, Site Reliability Engineering',
 		when: '2024 to 2025',
 		bullets: [
+			'Led a zero-data-loss AWS account migration covering DNS migration, service re-routing and cutover with minimal downtime, and performed cluster version upgrades with no production impact.',
 			'Led the migration of legacy workloads to Kubernetes, improving deployment consistency, resource utilisation, and operational scalability across the organisation.',
-			'Right-sized workloads from load-test and production metrics, reducing compute costs by ~35%.',
+			'Right-sized workloads from load-test and production metrics, bringing CPU and memory requests in line with observed usage and reducing the node count needed to run them.',
 			'Engineered pod-stability strategies using Pod Disruption Budgets, topology spread constraints, and Spot plus On-Demand node pools, sustaining 99.9% availability at lower instance cost.',
 			'Deployed a full DR setup covering circuit breakers, rate limiting, and automated failover, which reduced blast radius during incidents and hardened system resilience.',
-			'Built end-to-end observability with OpenTelemetry, Prometheus, Grafana, and Kibana / ELK, cutting MTTR by ~50% and improving SLA compliance.',
-			'Hardened security posture with WAF rules and Kubernetes network policies across all production services, and added caching layers that cut backend load and improved response times by ~40%.',
-			'Led a zero-data-loss AWS account migration covering DNS migration, service re-routing and cutover with minimal downtime, and performed cluster version upgrades with no production impact.',
+			'Built end-to-end observability with OpenTelemetry, Prometheus, Grafana, and Kibana / ELK, cutting median MTTR by ~40% and improving SLA compliance.',
+			'Hardened security posture with WAF rules and Kubernetes network policies across all production services, and added caching layers that measurably cut backend load and p95 response times.',
 		],
-		stack: ['Kubernetes', 'OpenTelemetry', 'Prometheus', 'Grafana', 'WAF'],
+		stack: ['Kubernetes', 'OpenTelemetry', 'Prometheus', 'Grafana', 'ELK', 'WAF'],
 	},
 	{
 		company: 'Mad Street Den',
@@ -81,13 +81,13 @@ export const POSITIONS = [
 		when: '2022 to 2024',
 		bullets: [
 			'Owned cloud cost engineering: built cost dashboards for engineering and leadership that surfaced spend leaks from NAT gateways, unused volumes, and inefficient data retention.',
-			'Optimised the EC2 fleet with a Spot, On-Demand, and Reservation blend, achieving ~40% compute-cost reduction while holding capacity for high-volume traffic spikes.',
-			'Implemented data backup and retention policies across storage systems, reducing storage costs by ~30% without compromising availability.',
+			'Optimised the EC2 fleet with a Spot, On-Demand, and Reservation blend, achieving ~30% compute-cost reduction while holding capacity for high-volume traffic spikes.',
+			'Implemented data backup and retention policies across storage systems, reducing storage spend without compromising restore times or availability.',
 			'Ran capacity-planning exercises combining load-test results with production metrics to right-size compute and define scaling policies.',
-			'Configured intelligent auto-scaling and alarm rules for traffic surges, reducing over-provisioning by ~25% while protecting against performance degradation.',
+			'Configured intelligent auto-scaling and alarm rules for traffic surges, cutting steady-state over-provisioning while protecting against performance degradation.',
 			'Managed Elasticsearch clusters at scale, tuning indexing, shard strategy, and retention to improve query performance and reduce storage overhead.',
 		],
-		stack: ['FinOps', 'AWS', 'Elasticsearch', 'Capacity Planning'],
+		stack: ['FinOps', 'AWS', 'Elasticsearch', 'Capacity Planning', 'Right-sizing'],
 	},
 	{
 		company: 'Mad Street Den',
@@ -97,20 +97,20 @@ export const POSITIONS = [
 			'Hired directly by the Director of Tech Support and SRE Director to stabilise a critical AI product suite that was struggling to meet SLA commitments.',
 			'Audited all organisation-wide products to map instabilities and failure patterns, then built the observability foundation from scratch: business and system metrics, dashboards, and alerting across all services.',
 			'Authored incident-response playbooks and runbooks for known failure patterns, then formed and led a 24/7 support team with on-call rotations, escalation paths, triage, and automation that resolved recurring issues and cut operational toil.',
-			'Established an SLO and error-budget framework, moving the team from reactive firefighting to proactive reliability management and cutting MTTR by ~40%.',
+			'Established an SLO and error-budget framework, moving the team from reactive firefighting to proactive reliability management, with MTTR trending down each quarter as runbooks and alerting matured.',
 		],
-		stack: ['SLOs', 'Incident Response', 'Observability'],
+		stack: ['SLOs', 'Incident Response', 'On-call', 'Observability'],
 	},
 	{
 		company: 'Qube Cinema Technologies',
 		title: 'Software Engineer (Associate to SE)',
 		when: '2018 to 2021',
 		bullets: [
-			'Built an automated testing tool that reduced manual QA effort by ~50% and improved release velocity.',
-			'Cut AWS S3 storage costs by ~35% by implementing intelligent multi-tier storage and lifecycle policies.',
-			'Built the credit user-management feature in Qube Billing and the distributor-theatre report generation feature, improving financial workflow efficiency and cutting manual reporting effort by ~40%.',
+			'Built an automated testing tool that roughly halved the manual regression pass and improved release velocity.',
+			'Cut AWS S3 storage costs by ~25% by implementing multi-tier storage and lifecycle policies.',
+			"Built the credit user-management feature in Qube Billing and the distributor-theatre report generation feature, removing a recurring manual step from the finance team's monthly reporting.",
 		],
-		stack: ['Automation', 'AWS', 'Billing'],
+		stack: ['Python', 'AWS', 'Test Automation', 'Billing'],
 	},
 ] as const;
 
@@ -149,13 +149,23 @@ export const SKILLS = [
 			'Loki',
 			'ELK',
 			'CloudWatch',
+			'Google Cloud Monitoring',
 			'Opsgenie',
 		],
 	},
 	{ group: 'DevSecOps & Policy', items: ['Kyverno', 'Trivy', 'SonarQube', 'Checkov', 'WAF'] },
 	{
-		group: 'Databases',
-		items: ['PostgreSQL', 'Elasticsearch', 'Redis', 'DynamoDB', 'CosmosDB', 'etcd'],
+		group: 'Databases & Analytics',
+		items: [
+			'PostgreSQL',
+			'Elasticsearch',
+			'ClickHouse',
+			'BigQuery',
+			'Redis',
+			'DynamoDB',
+			'CosmosDB',
+			'etcd',
+		],
 	},
 	{
 		group: 'Reliability',
@@ -171,8 +181,12 @@ export const SKILLS = [
 		group: 'FinOps',
 		items: ['Cost Dashboards', 'Spend-Leak Detection', 'Capacity Planning', 'Spot Strategy'],
 	},
-	{ group: 'MLOps (foundational)', items: ['MLflow', 'Kubeflow'] },
 ] as const;
+
+export const CERTIFICATIONS = [
+	{ name: 'Apache Airflow Fundamentals 3.x', status: 'Certified' },
+	{ name: 'Kubernetes CKA', status: 'Registered, in progress' },
+];
 
 export const EDUCATION = {
 	degree: 'Bachelor of Engineering, Electronics & Communications',

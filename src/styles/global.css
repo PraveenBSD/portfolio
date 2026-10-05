@@ -107,7 +107,7 @@ h1,h2,h3,.display{font-family:var(--font-display);letter-spacing:-0.03em;}
   color:var(--accent-ink);margin:0;
 }
 
-.sec{padding:56px 0 0;}
+.sec{padding-block:56px 0;}
 .sec-head{
   display:flex;align-items:flex-end;justify-content:space-between;gap:16px;
   flex-wrap:wrap;margin-bottom:20px;
@@ -158,7 +158,7 @@ h1,h2,h3,.display{font-family:var(--font-display);letter-spacing:-0.03em;}
 .site-nav a[aria-current='page']{border-color:var(--ink);background:var(--accent);color:var(--on-accent);}
 
 /* ---------- Hero ---------- */
-.hero{padding:52px 0 4px;}
+.hero{padding-block:52px 4px;}
 .hero-grid{display:grid;grid-template-columns:1fr auto;gap:40px;align-items:center;}
 .hero .now{
   display:inline-flex;align-items:center;gap:8px;
@@ -340,21 +340,21 @@ h1,h2,h3,.display{font-family:var(--font-display);letter-spacing:-0.03em;}
 .site-footer{margin-top:72px;border-top:var(--bw) solid var(--ink);background:var(--card);}
 .site-footer .inner{
   display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap;
-  padding:20px 0 40px;font-family:var(--font-mono);font-size:11.5px;color:var(--text-3);
+  padding-block:20px 40px;font-family:var(--font-mono);font-size:11.5px;color:var(--text-3);
 }
 .site-footer .links{display:flex;gap:8px;flex-wrap:wrap;}
 .site-footer .links a{padding:3px 8px;border:1px solid transparent;color:var(--text);}
 .site-footer .links a:hover{border-color:var(--ink);background:var(--pop);}
 
 /* ---------- Post page ---------- */
-.post-head{padding:44px 0 0;}
+.post-head{padding-block:44px 0;}
 .post-head .meta{
   display:flex;gap:12px;flex-wrap:wrap;align-items:center;
   font-family:var(--font-mono);font-size:11.5px;color:var(--text-3);margin-bottom:14px;
 }
 .post-head h1{font-size:clamp(26px,4vw,40px);font-weight:700;line-height:1.1;margin:0;max-width:24ch;}
 
-.article{padding:26px 0 0;font-size:15.5px;line-height:1.78;color:var(--text);}
+.article{padding-block:26px 0;font-size:15.5px;line-height:1.78;color:var(--text);}
 .article > :first-child{margin-top:0;}
 .article p{margin:0 0 18px;}
 .article h2{font-family:var(--font-display);font-size:20px;font-weight:700;margin:36px 0 10px;}
@@ -394,7 +394,7 @@ h1,h2,h3,.display{font-family:var(--font-display);letter-spacing:-0.03em;}
 .post-foot a:hover{color:var(--accent-ink);}
 
 /* ---------- Page heads ---------- */
-.page-head{padding:44px 0 0;}
+.page-head{padding-block:44px 0;}
 .page-head h1{font-size:clamp(26px,4vw,40px);font-weight:700;margin:10px 0 12px;}
 .page-head p{color:var(--text-2);margin:0;max-width:62ch;}
 .page-head p a{

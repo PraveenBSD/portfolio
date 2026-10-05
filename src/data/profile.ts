@@ -25,27 +25,27 @@ export const STATS = [
 	},
 	{
 		key: 'MTTR',
-		value: '−50',
+		value: '−40',
 		unit: '%',
-		pct: 50,
+		pct: 40,
 		basis: 'reduction',
 		note: 'observability + incident response',
 	},
 	{
 		key: 'Cloud cost',
-		value: '−40',
+		value: '−30',
 		unit: '%',
-		pct: 40,
+		pct: 30,
 		basis: 'reduction',
 		note: 'spot + reserved blending',
 	},
 	{
-		key: 'Config drift',
-		value: '−70',
+		key: 'Rollout time',
+		value: '−33',
 		unit: '%',
-		pct: 70,
+		pct: 33,
 		basis: 'reduction',
-		note: 'terraform standardisation',
+		note: 'end-to-end ArgoCD GitOps',
 	},
 ] as const;
 
@@ -74,7 +74,7 @@ export const EXPERIENCE = [
 		company: 'Mad Street Den',
 		role: 'SRE → Senior SRE → Technical Lead',
 		summary:
-			'Grew from stabilising a critical AI product suite to leading SRE: Kubernetes migration, DR and resilience, full-stack observability that halved MTTR, and FinOps work that cut compute cost ~40%.',
+			'Grew from stabilising a critical AI product suite to leading SRE: Kubernetes migration, DR and resilience, full-stack observability that cut MTTR ~40%, and FinOps work that cut compute cost ~30%.',
 		highlights: ['Kubernetes', 'Observability', 'DR', 'FinOps'],
 	},
 	{
@@ -84,7 +84,7 @@ export const EXPERIENCE = [
 		company: 'Qube Cinema Technologies',
 		role: 'Software Engineer (Associate → SE)',
 		summary:
-			'Built automated testing that halved manual QA, cut S3 storage cost ~35%, and shipped billing and reporting features for distribution partners.',
+			'Built automated testing that roughly halved the manual regression pass, cut S3 storage cost ~25%, and shipped billing and reporting features for distribution partners.',
 		highlights: ['Automation', 'AWS', 'Billing'],
 	},
 ] as const;
@@ -115,7 +115,7 @@ export const WORK = [
 		slug: 'finops',
 		title: 'FinOps Cost Engine',
 		blurb:
-			'Cost dashboards and spend-leak detection feeding a Spot + On-Demand + Reservation strategy that cut compute spend ~40%.',
+			'Cost dashboards and spend-leak detection feeding a Spot + On-Demand + Reservation strategy that cut compute spend ~30%.',
 		stack: ['FinOps', 'AWS', 'Capacity Planning'],
 	},
 ] as const;

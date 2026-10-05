@@ -1,7 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import CareerTimeline from '../components/CareerTimeline.astro';
-import { SUMMARY, IMPACT, EXPERTISE, POSITIONS, SKILLS, EDUCATION } from '../data/resume';
+import { SUMMARY, IMPACT, EXPERTISE, POSITIONS, SKILLS, EDUCATION, CERTIFICATIONS } from '../data/resume';
 import { SOCIAL } from '../consts';
 
 // Group consecutive positions at the same employer so a progression in place
@@ -129,6 +129,17 @@ for (const role of POSITIONS) {
 				<span class="skill-group">Expertise</span>
 				<div class="skill-items">
 					{EXPERTISE.map((e) => <span class="pill">{e}</span>)}
+				</div>
+			</div>
+			<div class="skill-row">
+				<span class="skill-group">Certifications</span>
+				<div>
+					{CERTIFICATIONS.map((c) => (
+						<p style="margin:0 0 4px">
+							<span style="font-weight:600">{c.name}</span>
+							<span style="color:var(--text-2);font-size:13.5px"> - {c.status}</span>
+						</p>
+					))}
 				</div>
 			</div>
 			<div class="skill-row">
