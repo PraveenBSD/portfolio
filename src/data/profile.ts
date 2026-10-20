@@ -6,7 +6,7 @@ export const HERO = {
 	now: 'Platform Engineering · Chennai, India',
 	headlineLead: 'I build the platforms',
 	headlineAccent: 'other engineers build on.',
-	lede: 'Platform engineering lead with 8 years turning unstable, hand-run systems into declarative, self-service platforms. I write here about the real work: GitOps, internal developer platforms, SRE, and keeping the cloud bill honest.',
+	lede: 'Platform engineer with 8 years turning unstable, hand-run systems into declarative, self-service platforms. I write here about the real work: GitOps, internal developer platforms, SRE, and keeping the cloud bill honest.',
 } as const;
 
 /**
